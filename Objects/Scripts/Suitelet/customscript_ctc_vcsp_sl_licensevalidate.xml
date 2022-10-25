@@ -1,0 +1,26 @@
+<suitelet scriptid="customscript_ctc_vcsp_sl_licensevalidate">
+  <defaultfunction>processLicense</defaultfunction>
+  <description></description>
+  <isinactive>F</isinactive>
+  <name>VAR Connect Send PO License Validator SL</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>T</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteApps/com.catalysttechcorp.varconnectsendpo/Gateways/CTC_VCSP_SL1_LicenseValidator.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_ctc_vcsp_sl_licensevalidate">
+      <allemployees>T</allemployees>
+      <allpartners>F</allpartners>
+      <allroles>T</allroles>
+      <audslctrole></audslctrole>
+      <eventtype></eventtype>
+      <isdeployed>T</isdeployed>
+      <isonline>T</isonline>
+      <loglevel>DEBUG</loglevel>
+      <runasrole></runasrole>
+      <status>RELEASED</status>
+      <title>VAR Connect Send PO License Validator SL</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</suitelet>

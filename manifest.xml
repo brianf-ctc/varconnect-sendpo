@@ -1,0 +1,14 @@
+<manifest projecttype="SUITEAPP">
+  <publisherid>com.catalysttechcorp</publisherid>
+  <projectid>varconnectsendpo</projectid>
+  <projectname>VAR Connect Send PO</projectname>
+  <projectversion>1.0.0</projectversion>
+  <frameworkversion>1.0</frameworkversion>
+  <dependencies>
+    <features>
+      <feature required="true">CREATESUITEBUNDLES</feature>
+      <feature required="true">CUSTOMRECORDS</feature>
+      <feature required="true">SERVERSIDESCRIPTING</feature>
+    </features>
+  </dependencies>
+</manifest>
