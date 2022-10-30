@@ -18,9 +18,10 @@ define([
     '../Vendor Scripts/CTC_VCSP_Lib_Dell.js',
     '../Vendor Scripts/CTC_VCSP_Lib_Arrow.js',
     '../Vendor Scripts/CTC_VCSP_Lib_Synnex.js',
+    '../Vendor Scripts/CTC_VCSP_Lib_IngramMicro.js',
     '../VO/CTC_VCSP_Response.js',
     '../VO/CTC_VCSP_PO.js'
-], function (ctc_util, constants, libVendorConfig, libDell, libArrow, libSynnex, response, PO) {
+], function (ctc_util, constants, libVendorConfig, libDell, libArrow, libSynnex, libIngram, response, PO) {
     var LogTitle = 'LibWS';
 
     function _validateVendorConfig(options) {
@@ -37,6 +38,11 @@ define([
             case constants.Lists.API_VENDOR.SYNNEX:
                 requiredWebserviceInfo.user = recVendorConfig.user;
                 requiredWebserviceInfo.password = recVendorConfig.password;
+                break;
+            case constants.Lists.API_VENDOR.INGRAM:
+                requiredWebserviceInfo.endpoint = recVendorConfig.accessEndPoint;
+                requiredWebserviceInfo.apiKey = recVendorConfig.apiKey;
+                requiredWebserviceInfo.apiSecret = recVendorConfig.apiSecret;
                 break;
             case constants.Lists.API_VENDOR.DELL:
             default:
@@ -63,8 +69,9 @@ define([
             vendorList = constants.Lists.API_VENDOR,
             libVendor;
 
-        log.debug(logTitle, '>> API Vendor: ' + apiVendor);
-
+            log.debug(logTitle, '>> API Vendor: ' + apiVendor);
+            log.debug(logTitle, '>> lib Vendor: ' + libVendor);
+            
         switch (apiVendor) {
             case vendorList.DELL:
                 libVendor = libDell;
@@ -75,13 +82,16 @@ define([
             case vendorList.SYNNEX:
                 libVendor = libSynnex;
                 break;
+            case vendorList.INGRAM:
+                libVendor = libIngram;
+                break;
             default:
                 log.error('Switch case vendor', 'API Vendor not setup');
                 break;
         }
 
-        log.debug(logTitle, JSON.stringify(libVendor));
-
+        log.debug(logTitle, JSON.stringify(libVendor) + ' :: Object Keys: ' + libVendor.constructor);
+        
         return libVendor;
     }
 
@@ -97,6 +107,7 @@ define([
     }
 
     function process(options) {
+        var logTitle = [LogTitle, 'process'].join('::');
         var nativePO = options.nativePO,
             recPO = new PO(nativePO),
             resp;
@@ -118,7 +129,8 @@ define([
                     recVendorConfig: recVendorConfig
                 });
 
-                if (!libVendor) throw 'Missing or invalid vendor configuration';
+                log.debug(logTitle, 'Lib Vendor: ' + Object.keys(libVendor));
+                if (!libVendor || (Object.keys(libVendor).length === 0 && libVendor.constructor === Object)) throw 'Missing or invalid vendor configuration';
 
                 _validateVendorConfig({
                     recVendorConfig: recVendorConfig
