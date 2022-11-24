@@ -89,8 +89,8 @@ define([
                 log.error('Switch case vendor', 'API Vendor not setup');
                 break;
         }
-
-        log.debug(logTitle, JSON.stringify(libVendor) + ' :: Object Keys: ' + libVendor.constructor);
+        log.debug(logTitle, 'Lib Vendor: ' + libVendor);
+        // log.debug(logTitle, JSON.stringify(libVendor) + ' :: Object Keys: ' + libVendor.constructor);
         
         return libVendor;
     }
