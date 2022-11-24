@@ -35,8 +35,8 @@ define(['N/search', 'N/xml', '../Library/CTC_VCSP_Constants.js', '../Library/CTC
     var bearerToken = 'Bearer ' + getAccessToken(dataIn.vendorConfig);
     var headers = {
       Accept: 'application/json',
-      // 'IM-CustomerNumber': dataIn.vendorConfig.customerNo,
-      'IM-CustomerNumber': '20-222222', // sample customernumber. actual customerNo doesnt work
+      'IM-CustomerNumber': dataIn.vendorConfig.customerNo,
+      // 'IM-CustomerNumber': '20-222222', // sample customernumber. actual customerNo doesnt work
       'IM-CountryCode': 'US',
       'IM-SenderID': 'NS_CATALYST',
       'IM-CorrelationID': dataIn.objRecord.tranId,
@@ -48,6 +48,7 @@ define(['N/search', 'N/xml', '../Library/CTC_VCSP_Constants.js', '../Library/CTC
     var imResponse = ctc_util.sendRequest({
       header: [LogTitle, 'sendPOToIngram'].join(' : '),
       method: 'post',
+      recordId: dataIn.objRecord.id,
       query: {
         url: dataIn.vendorConfig.endPoint,
         headers: headers,
@@ -55,7 +56,7 @@ define(['N/search', 'N/xml', '../Library/CTC_VCSP_Constants.js', '../Library/CTC
       }
     });
 
-    log.audit(logTitle, 'Ingram: ' + JSON.stringify(imResponse));
+    log.audit(logTitle, '>> Ingram: ' + JSON.stringify(imResponse));
 
     return imResponse;
   }
@@ -79,7 +80,7 @@ define(['N/search', 'N/xml', '../Library/CTC_VCSP_Constants.js', '../Library/CTC
       lines: arrLines,
       additionalAttributes: [{
         attributeName: 'allowDuplicateCustomerOrderNumber',
-        attributeValue: false
+        attributeValue: true
       }]
     };
 
@@ -113,10 +114,15 @@ define(['N/search', 'N/xml', '../Library/CTC_VCSP_Constants.js', '../Library/CTC
         responseBody: imResponse.PARSED_REPONSE || imResponse.RESPONSE.body,
         responseCode: imResponse.RESPONSE.code
       };
+
+      if (imResponse.isError) {
+        returnResponse.isError = true;
+        returnResponse.message = imResponse.errorMsg;
+      }
+
+      log.debug(logTitle, '>> RESPONSE ERROR: ' + returnResponse.responseBody.isError);
     } catch (e) {
-      var errorMsg = ctc_util.extractError(e);
-      returnResponse.isError = true;
-      returnResponse.message = errorMsg;
+      log.error(logTitle, 'FATAL_ERROR');
     }
 
     return returnResponse;
