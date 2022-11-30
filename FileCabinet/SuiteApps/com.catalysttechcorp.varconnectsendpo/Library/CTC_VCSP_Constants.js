@@ -54,10 +54,10 @@ define([], function () {
                 SKU_COLUMN: 'custrecord_ctc_vcsp_ven_itemcol',
                 TEST_REQUEST: 'custrecord_ctc_vcsp_test',
                 EVENT_TYPE: 'custrecord_ctc_vcsp_event',
-                QA_WEBSERVICE_ENDPOINT: 'custrecord_ctc_vcsp_endpoint',
-                QA_ACCESS_ENDPOINT: 'custrecord_ctc_vcsp_access_endpoint',
-                QA_API_KEY: 'custrecord_ctc_vcsp_api_key',
-                QA_API_SECRET: 'custrecord_ctc_vcsp_api_secret',
+                QA_WEBSERVICE_ENDPOINT: 'custrecord_ctc_vcsp_endpoint_qa',
+                QA_ACCESS_ENDPOINT: 'custrecord_ctc_vcsp_access_endpoint_qa', // fixed bug on QA fields
+                QA_API_KEY: 'custrecord_ctc_vcsp_api_key_qa',
+                QA_API_SECRET: 'custrecord_ctc_vcsp_api_secret_qa',
                 Bill: {
                     ADDRESSEE: 'custrecord_ctc_vcsp_bill_addressee',
                     ATTENTION: 'custrecord_ctc_vcsp_bill_attention',
@@ -126,7 +126,8 @@ define([], function () {
             API_VENDOR: {
                 DELL: '1',
                 ARROW: '2',
-                SYNNEX: '3'
+                SYNNEX: '3',
+                INGRAM: '4'
             },
             VC_LOG_STATUS: {
                 SUCCESS: '1',
