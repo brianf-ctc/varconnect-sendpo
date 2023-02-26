@@ -2,7 +2,7 @@
   <publisherid>com.catalysttechcorp</publisherid>
   <projectid>varconnectsendpo</projectid>
   <projectname>VAR Connect Send PO</projectname>
-  <projectversion>1.0.0</projectversion>
+  <projectversion>1.1.0</projectversion>
   <frameworkversion>1.0</frameworkversion>
   <dependencies>
     <features>
