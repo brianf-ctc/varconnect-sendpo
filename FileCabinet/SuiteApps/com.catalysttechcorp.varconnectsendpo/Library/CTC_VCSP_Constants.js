@@ -127,7 +127,8 @@ define([], function () {
                 DELL: '1',
                 ARROW: '2',
                 SYNNEX: '3',
-                INGRAM: '4'
+                INGRAM: '4',
+                DANDH: '5'
             },
             VC_LOG_STATUS: {
                 SUCCESS: '1',
