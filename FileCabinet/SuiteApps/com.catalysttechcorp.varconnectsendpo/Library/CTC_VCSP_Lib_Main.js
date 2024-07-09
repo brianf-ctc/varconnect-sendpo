@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2022 Catalyst Tech Corp
+ * Copyright (c) 2023 Catalyst Tech Corp
  * All Rights Reserved.
  *
  * This software is the confidential and proprietary information of
@@ -8,7 +8,7 @@
  * accordance with the terms of the license agreement you entered into
  * with Catalyst Tech.
  *
- * @NApiVersion 2.x
+ * @NApiVersion 2.1
  * @NModuleScope Public
  */
 /**
@@ -19,36 +19,36 @@
  */
 define([
     'N/record',
-    './CTC_VCSP_Lib_Preferences.js',
-    './CTC_VCSP_Lib_WebService.js',
-    '../VO/CTC_VCSP_PO.js',
-    '../Library/CTC_VCSP_Constants.js'
-], function (record, pref, libWebService, PO, constants) {
-    var LogTitle = 'VCSendPO';
-    function _updateNativePO(options) {
-        var logTitle = [LogTitle, '_updateNativePO'].join('::');
-        var response = options.response,
+    './CTC_VCSP_Lib_WebService',
+    '../VO/CTC_VCSP_PO',
+    './CTC_VCSP_Lib_Preferences',
+    '../Library/CTC_VCSP_Constants'
+], function (NS_Record, libWebService, PO, VCSP_Pref, VCSP_Global) {
+    let LogTitle = 'VCSendPO';
+    function _updateNativePO(option) {
+        let logTitle = [LogTitle, '_updateNativePO'].join('::');
+        let response = option.response,
             orderStatus = response.orderStatus,
-            rec = options.purchOrder,
+            rec = option.purchOrder,
             isRecChanged = false;
 
         if (response) {
-            var newHeaderValues = {};
+            let newHeaderValues = {};
             if (response.transactionNum) {
-                newHeaderValues[constants.Fields.Transaction.VENDOR_PO_NUMBER] = response.transactionNum;
+                newHeaderValues[VCSP_Global.Fields.Transaction.VENDOR_PO_NUMBER] = response.transactionNum;
             }
-            newHeaderValues[constants.Fields.Transaction.VCSP_TIMESTAMP] = new Date();
-            newHeaderValues[constants.Fields.Transaction.IS_PO_SENT] = response.isError ? false : true;
-            newHeaderValues[constants.Fields.Transaction.VENDOR_RECEIPT] = JSON.stringify({
+            newHeaderValues[VCSP_Global.Fields.Transaction.VCSP_TIMESTAMP] = new Date();
+            newHeaderValues[VCSP_Global.Fields.Transaction.IS_PO_SENT] = response.isError ? false : true;
+            newHeaderValues[VCSP_Global.Fields.Transaction.VENDOR_RECEIPT] = JSON.stringify({
                 code: response.responseCode,
                 message: response.message
-            }, null, '\t');
+            });
 
             if (response.isError) {
-                newHeaderValues[constants.Fields.Transaction.VENDOR_RECEIPT] = JSON.stringify(response, null, '\t');
+                newHeaderValues[VCSP_Global.Fields.Transaction.VENDOR_RECEIPT] = JSON.stringify(response);
             }
 
-            for (var fieldId in newHeaderValues) {
+            for (let fieldId in newHeaderValues) {
                 rec.setValue({
                     fieldId: fieldId,
                     value: newHeaderValues[fieldId]
@@ -57,39 +57,60 @@ define([
             }
 
             if (orderStatus && orderStatus.items) {
-                var vcPOLineFieldsIds = constants.Fields.VarConnectPOLine;
-                var poLineSublistId = ['recmach', vcPOLineFieldsIds.PURCHASE_ORDER].join('');
-                var mapItemDetailsToSublistFieldId = {
+                let vcPOLineFieldsIds = VCSP_Global.Fields.VarConnectPOLine;
+                let poLineSublistId = ['recmach', vcPOLineFieldsIds.PURCHASE_ORDER].join('');
+                let mapItemDetailsToSublistFieldId = {
+                    line_unique_key: vcPOLineFieldsIds.LINE_UNIQUE_KEY,
                     line_number: vcPOLineFieldsIds.LINE,
+                    vendor_line: vcPOLineFieldsIds.VENDOR_LINE,
                     order_status: vcPOLineFieldsIds.STATUS,
-                    ship_date: vcPOLineFieldsIds.SHIP_DATE,
-                    order_number: vcPOLineFieldsIds.VENDOR_ORDER_NUMBER,
-                    vendorSKU: vcPOLineFieldsIds.SKU,
+                    order_type: vcPOLineFieldsIds.TYPE,
+                    vendor_order_number: vcPOLineFieldsIds.VENDOR_ORDER_NUMBER,
+                    customer_order_number: vcPOLineFieldsIds.CUSTOMER_ORDER_NUMBER,
+                    vendor_sku: vcPOLineFieldsIds.SKU,
                     item_number: vcPOLineFieldsIds.MPN,
-                    note: vcPOLineFieldsIds.DESCRIPTION,
+                    note: vcPOLineFieldsIds.NOTE,
                     quantity: vcPOLineFieldsIds.QUANTITY,
+                    rate: vcPOLineFieldsIds.RATE,
+                    ship_date: vcPOLineFieldsIds.SHIP_DATE,
                     ship_qty: vcPOLineFieldsIds.QTY_SHIPPED,
                     ship_from: vcPOLineFieldsIds.SHIP_FROM,
                     ship_method: vcPOLineFieldsIds.SHIP_METHOD,
-                    carrier: vcPOLineFieldsIds.SHIP_METHOD_DESCRIPTION,
+                    carrier: vcPOLineFieldsIds.CARRIER,
                     eta_date: vcPOLineFieldsIds.ETA_DATE,
+                    serial_num: vcPOLineFieldsIds.SERIAL_NUMBERS,
                     tracking_num: vcPOLineFieldsIds.TRACKING_NUMBERS,
-                    serial_num: vcPOLineFieldsIds.SERIAL_NUMBERS
+                    internal_reference_num: vcPOLineFieldsIds.INTERNAL_REFERENCE,
+                    json_data: vcPOLineFieldsIds.JSON_DATA
                 };
-                for (var i = 0, len = orderStatus.items.length; i < len; i += 1) {
-                    var responseLineDetails = orderStatus.items[i];
+                let mapItemDetailsToSublistFieldIdText = {
+                    order_date: vcPOLineFieldsIds.ORDER_DATE
+                };
+                for (let i = 0, len = orderStatus.items.length; i < len; i += 1) {
+                    let responseLineDetails = orderStatus.items[i];
                     rec.selectLine({
                         sublistId: poLineSublistId,
                         line: i
                     });
-                    for (var responseLineProperty in mapItemDetailsToSublistFieldId) {
-                        var columnFieldId = mapItemDetailsToSublistFieldId[responseLineProperty],
+                    for (let responseLineProperty in mapItemDetailsToSublistFieldId) {
+                        let columnFieldId = mapItemDetailsToSublistFieldId[responseLineProperty],
                             columnValue = responseLineDetails[responseLineProperty];
                         if (columnValue != 'NA') {
                             rec.setCurrentSublistValue({
                                 sublistId: poLineSublistId,
                                 fieldId: columnFieldId,
                                 value: columnValue
+                            });
+                        }
+                    }
+                    for (let responseLineProperty in mapItemDetailsToSublistFieldIdText) {
+                        let columnFieldId = mapItemDetailsToSublistFieldIdText[responseLineProperty],
+                            columnValue = responseLineDetails[responseLineProperty];
+                        if (columnValue != 'NA') {
+                            rec.setCurrentSublistText({
+                                sublistId: poLineSublistId,
+                                fieldId: columnFieldId,
+                                text: columnValue
                             });
                         }
                     }
@@ -114,37 +135,32 @@ define([
             }
 
             if (isRecChanged) {
-                log.audit(logTitle, 'Update purchase order. Id=' + rec.save({
-                    enableSourcing: false,
-                    ignoreMandatoryFields: true
-                }));
+                log.audit(
+                    logTitle,
+                    'Update purchase order. Id=' +
+                        rec.save({
+                            enableSourcing: false,
+                            ignoreMandatoryFields: true
+                        })
+                );
             }
         }
     }
 
-    function sendPO(options) {
-        var logTitle = [LogTitle, 'sendPO'].join('::');
-
-        var recId = options.recId,
-            response;
-        var rec = record.load({
-            type: record.Type.PURCHASE_ORDER,
-            id: recId,
-            isDynamic: true
-        });
-
-        if (rec) {
-            response = libWebService.process({
-                nativePO: rec
+    function sendPO(option) {
+        let logTitle = [LogTitle, 'sendPO'].join('::'),
+            purchaseOrderId = option.purchaseOrderId,
+            response,
+            record = NS_Record.load({
+                type: NS_Record.Type.PURCHASE_ORDER,
+                id: purchaseOrderId,
+                isDynamic: true
             });
-
+        if (record) {
+            response = libWebService.process({ transaction: record });
             log.audit(logTitle, '>> send PO response: ' + JSON.stringify(response));
-            _updateNativePO({
-                response: response,
-                purchOrder: rec
-            });
+            _updateNativePO({ response: response, purchOrder: record });
         }
-
         return response;
     }
 

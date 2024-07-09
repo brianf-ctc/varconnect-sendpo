@@ -8,29 +8,30 @@
  * accordance with the terms of the license agreement you entered into
  * with Catalyst Tech.
  *
- * @NApiVersion 2.x
+ * @NApiVersion 2.1
  * @NModuleScope Public
  */
 define([
     'N/encode',
     'N/search',
-    '../Library/CTC_VCSP_Constants.js',
-    '../Library/CTC_VCSP_Lib_Log.js',
+    'N/error',
+    '../Library/CTC_VCSP_Constants',
+    '../Library/CTC_VCSP_Lib_Log',
     '../Library/CTC_Lib_Utils'
-], function (ns_encode, ns_search, constants, vcLog, ctc_util) {
-    var LogTitle = 'WS:Dell';
+], function (ns_encode, ns_search, ns_error, constants, vcLog, ctc_util) {
+    let LogTitle = 'WS:Dell';
 
     function generateToken(option) {
-        var logTitle = [LogTitle, 'generateToken'].join('::');
+        let logTitle = [LogTitle, 'generateToken'].join('::');
 
-        var authkey = ns_encode.convert({
+        let authkey = ns_encode.convert({
             string: option.key + ':' + option.secret,
             inputEncoding: ns_encode.Encoding.UTF_8,
             outputEncoding: ns_encode.Encoding.BASE_64_URL_SAFE
         });
         log.audit(logTitle, '>> auth-key: ' + JSON.stringify(authkey));
 
-        var tokenReq = ctc_util.sendRequest({
+        let tokenReq = ctc_util.sendRequest({
             header: [LogTitle, 'GenerateToken'].join(' : '),
             method: 'post',
             recordId: option.poId,
@@ -48,15 +49,22 @@ define([
 
         if (tokenReq.isError) {
             // try to parse anything
-            var errorMessage = tokenReq.errorMsg;
+            let errorMessage = tokenReq.errorMsg;
             if (tokenReq.PARSED_RESPONSE && tokenReq.PARSED_RESPONSE.error_description) {
                 errorMessage = tokenReq.PARSED_RESPONSE.error_description;
             }
-            throw 'Generate Token Error - ' + errorMessage;
+            throw ns_error.create({
+                name: 'TOKEN_ERR',
+                message: 'Generate Token Error - ' + errorMessage
+            });
         }
 
-        var tokenResp = ctc_util.safeParse(tokenReq.RESPONSE);
-        if (!tokenResp || !tokenResp.access_token) throw 'Unable to generate token';
+        let tokenResp = ctc_util.safeParse(tokenReq.RESPONSE);
+        if (!tokenResp || !tokenResp.access_token)
+            throw ns_error.create({
+                name: 'TOKEN_ERR',
+                message: 'Unable to retrieve token'
+            });
 
         log.audit(logTitle, '>> tokenResp: ' + JSON.stringify(tokenResp));
 
@@ -64,208 +72,476 @@ define([
     }
 
     function generateBody(option) {
-        var logTitle = [LogTitle, 'generateBody'].join('::'),
+        let logTitle = [LogTitle, 'generateBody'].join('::'),
             returnValue = '';
 
-        var record = option.record,
+        let poObj = option.purchaseOrder,
+            record = option.transaction,
             customerNo = option.customerNo,
-            config = option.config,
-            itemLength = record.items.length,
+            vendorConfig = option.vendorConfig,
+            itemLength = poObj.items.length,
             testRequest = option.testRequest;
 
-        var bodyContentJSON = {
+        log.audit(logTitle, '// poObj: ' + JSON.stringify(poObj));
+
+        let field_mapping = ctc_util.safeParse(vendorConfig.fieldMap) || {};
+
+        let bodyContentJSON = {
             isTestPayload: !!testRequest,
-            CorrelationId: '',
-            PoNumber: record.tranId,
-            EndCustomerPONumber: record.custPO,
-            ProfileId: customerNo,
-            RequestedDeliveryDate: (function () {
-                var deliveryDate = null;
-                for (var i = 0; i < itemLength; i++) {
+            correlationId: '',
+            poNumber: poObj.tranId,
+            endCustomerPONumber: poObj.custPO || '',
+            profileId: customerNo,
+            profilePwd: '',
+            requestedDeliveryDate: (function () {
+                let deliveryDate = null;
+                for (let i = 0; i < itemLength; i++) {
                     if (deliveryDate) break;
-                    var expectedReceiptDate = record.items[i].expectedReceiptDate;
+                    let expectedReceiptDate = poObj.items[i].expectedReceiptDate;
                     if (expectedReceiptDate) deliveryDate = expectedReceiptDate;
                 }
-                return deliveryDate || 'null';
+                return deliveryDate || '';
             })(),
-            OrderContact: {
-                Company: config.Bill.addressee,
-                ContactName: config.Bill.attention,
-                Email: config.Bill.email,
-                Telephone: config.Bill.phoneno,
-                Address: {
-                    Address1: config.Bill.address1,
-                    Address2: record.custPO, //config.Bill.address2,
-                    City: config.Bill.city,
-                    StateOrProvince: config.Bill.state,
-                    PostalCode: config.Bill.zip,
-                    Country: config.Bill.country
+            // orderContact: (function () {
+            //     let contactId = recPO.getValue({ fieldId: 'custbody_ctc_quote_contact' });
+
+            // })(),
+            orderContact: {
+                company: vendorConfig.Bill.addressee,
+                contactName: vendorConfig.Bill.attention,
+                email: vendorConfig.Bill.email,
+                telephone: vendorConfig.Bill.phoneno,
+                address: {
+                    address1: vendorConfig.Bill.address1,
+                    address2: poObj.custPO, //config.Bill.address2,
+                    city: vendorConfig.Bill.city,
+                    stateOrProvince: vendorConfig.Bill.state,
+                    postalCode: vendorConfig.Bill.zip,
+                    country: vendorConfig.Bill.country
                 }
             },
-            ShippingContact: {
-                Company: config.Bill.addressee,
-                ContactName: config.Bill.attention,
-                Email: config.Bill.email,
-                Telephone: config.Bill.phoneno,
-                Address: {
-                    Address1: config.Bill.address1,
-                    Address2: record.custPO, //config.Bill.address2,
-                    City: config.Bill.city,
-                    StateOrProvince: config.Bill.state,
-                    PostalCode: config.Bill.zip,
-                    Country: config.Bill.country
+            shippingContact: (function () {
+                let logTitle = [LogTitle, 'GenerateBody', 'shippingContact'].join('::');
+
+                let shipSubRec = record.getSubrecord({ fieldId: 'shippingaddress' });
+                log.audit(logTitle, '// shipSubRec: ' + JSON.stringify(shipSubRec));
+
+                let poData = {
+                    shipto: record.getValue({ fieldId: 'shipto' }),
+                    createdfrom: record.getValue({ fieldId: 'createdfrom' }),
+                    primaryContact: record.getValue({
+                        fieldId: 'custbody_ctc_vcsp_primary_contact'
+                    })
+                };
+                log.audit(logTitle, '// poData: ' + JSON.stringify(poData));
+
+                let arrAddressFields = [
+                    'country',
+                    'attention',
+                    'addressee',
+                    'addrphone',
+                    'addr1',
+                    'addr2',
+                    'addr3',
+                    'city',
+                    'state',
+                    'zip'
+                ];
+
+                let addrInfo = {};
+                arrAddressFields.forEach(function (fld) {
+                    addrInfo[fld] = {
+                        value: shipSubRec.getValue({ fieldId: fld }),
+                        text: shipSubRec.getText({ fieldId: fld })
+                    };
+                });
+                log.audit(logTitle, '// addrInfo: ' + JSON.stringify(addrInfo));
+                if (ctc_util.isEmpty(addrInfo))
+                    throw ns_error.create({
+                        name: 'MISSING_SHIP_ADDRESS',
+                        message: 'Missing Shipping Address Info'
+                    });
+
+                // get the customer from 'shipto' or SO's entity
+                let customerId = poData.shipto;
+                if (!customerId) {
+                    let salesOrderSearch = ns_search.create({
+                        type: 'salesorder',
+                        filters: [
+                            ['type', 'anyof', 'SalesOrd'],
+                            'AND',
+                            ['internalid', 'anyof', poData.createdfrom],
+                            'AND',
+                            ['mainline', 'is', 'T']
+                        ],
+                        columns: ['entity']
+                    });
+
+                    salesOrderSearch.run().each(function (result) {
+                        customerId = result.getValue({ name: 'entity' });
+                        return true;
+                    });
                 }
-            },
-            BillingContact: {
-                Company: config.Bill.addressee,
-                ContactName: config.Bill.attention,
-                Email: config.Bill.email,
-                Telephone: config.Bill.phoneno,
-                Address: {
-                    Address1: config.Bill.address1,
-                    Address2: record.custPO, //config.Bill.address2,config.Bill.address2,
-                    City: config.Bill.city,
-                    StateOrProvince: config.Bill.state,
-                    PostalCode: config.Bill.zip,
-                    Country: config.Bill.country
+                log.audit(logTitle, '// customerid: ' + customerId);
+
+                // get the primary contact
+                let ContactRoles = { PRIMARY: '-10', ALTERNATE: '-20' };
+
+                let contactSearchObj = ns_search.create({
+                    type: 'contact',
+                    filters: [
+                        ['company', 'anyof', customerId],
+                        'AND',
+                        ['role', 'anyof', ContactRoles.PRIMARY, ContactRoles.ALTERNATE] // PRIMARY(-10)| ALTERNATE
+                    ],
+                    columns: ['entityid', 'email', 'phone', 'contactrole']
+                });
+
+                let contactNames = {};
+                contactSearchObj.run().each(function (result) {
+                    let contactRole = {
+                        value: result.getValue({ name: 'contactrole' }),
+                        text: result.getText({ name: 'contactrole' })
+                    };
+
+                    contactNames[contactRole.value] = {
+                        entityid: result.getValue({ name: 'entityid' }),
+                        email: result.getValue({ name: 'email' }),
+                        role: contactRole
+                    };
+
+                    return true;
+                });
+
+                let contactInfo =
+                    contactNames[ContactRoles.PRIMARY] && contactNames[ContactRoles.PRIMARY].entityid
+                        ? contactNames[ContactRoles.PRIMARY]
+                        : contactNames[ContactRoles.ALTERNATE];
+                log.audit(logTitle, '// contactInfo: ' + JSON.stringify(contactInfo));
+
+                if (ctc_util.isEmpty(contactInfo)) {
+                    // try to get data from custbody_ctc_vcsp_primary_contact
+                    if (poData.primaryContact) {
+                        contactSearchObj = ns_search.create({
+                            type: 'contact',
+                            filters: [['internalid', 'anyof', poData.primaryContact]],
+                            columns: ['entityid', 'email', 'phone', 'contactrole']
+                        });
+
+                        contactSearchObj.run().each(function (result) {
+                            contactInfo = {
+                                entityid: result.getValue({ name: 'entityid' }),
+                                email: result.getValue({ name: 'email' })
+                            };
+                            return true;
+                        });
+                    }
+                }
+                if (ctc_util.isEmpty(contactInfo)) {
+                    contactInfo = {
+                        entityid: poObj.shipAddressee,
+                        email: poObj.shipEmail
+                    };
+                }
+                log.audit(logTitle, '// contactInfo: ' + JSON.stringify(contactInfo));
+
+                if (ctc_util.isEmpty(contactInfo))
+                    throw ns_error.create({
+                        name: 'MISSING_SHIP_CONTACT',
+                        message: 'Missing Contact Info'
+                    });
+
+                let shippingContactObj = {
+                    company: addrInfo.addressee.value,
+                    contactName: contactInfo.entityid,
+                    email: contactInfo.email,
+                    telephone: addrInfo.addrphone.value,
+                    address: {
+                        address1: addrInfo.addr1.value,
+                        address2: addrInfo.addr2.value,
+                        city: addrInfo.city.value,
+                        stateOrProvince: addrInfo.state.value,
+                        postalCode: addrInfo.zip.value,
+                        country: addrInfo.country.value
+                    }
+                };
+
+                if (field_mapping && field_mapping.shippingContact) {
+                    log.audit(
+                        logTitle,
+                        '>> field_mapping.shippingContact: ' + JSON.stringify(field_mapping.shippingContact)
+                    );
+
+                    for (let fld in field_mapping.shippingContact) {
+                        if (!field_mapping.shippingContact[fld]) continue;
+                        let mappedvalue = record.getValue({
+                            fieldId: field_mapping.shippingContact[fld]
+                        });
+
+                        log.audit(logTitle, '>> mappedvalue: ' + JSON.stringify(mappedvalue));
+                        shippingContactObj[fld] = mappedvalue;
+                    }
+                }
+
+                return shippingContactObj;
+            })(),
+            billingContact: {
+                company: vendorConfig.Bill.addressee,
+                contactName: vendorConfig.Bill.attention,
+                email: vendorConfig.Bill.email,
+                telephone: vendorConfig.Bill.phoneno,
+                address: {
+                    address1: vendorConfig.Bill.address1,
+                    address2: poObj.custPO, //config.Bill.address2,config.Bill.address2,
+                    city: vendorConfig.Bill.city,
+                    stateOrProvince: vendorConfig.Bill.state,
+                    postalCode: vendorConfig.Bill.zip,
+                    country: vendorConfig.Bill.country
                 }
             },
             payment: {
-                PaymentMean: config.paymentMean,
-                PaymentMeanOther: config.paymentOther,
-                PaymentTerm: config.paymentTerm
+                PaymentMean: vendorConfig.paymentMean,
+                PaymentMeanOther: vendorConfig.paymentOther,
+                PaymentTerm: vendorConfig.paymentTerm
             },
             orderDetails: (function () {
-                var arrItemList = [];
+                let logTitle = [LogTitle, 'GenerateBody', 'orderDetails'].join('::');
 
-                for (var i = 0, j = itemLength; i < j; i++) {
-                    var itemData = record.items[i];
+                let arrItemList = [];
 
-                    var itemDetails = {
-                        LineItemNum: (i + 1).toString(),
-                        lineItemDescription: 'null',
-                        SupplierPartId: itemData.quotenumber,
-                        SupplierPartIdExt: itemData.quotenumber,
-                        Quantity: itemData.quantity.toString(),
-                        UnitPrice: itemData.rate.toString(),
-                        Currency: record.currency,
-                        FinalRecipient: {
-                            Company: config.Bill.addressee,
-                            ContactName: config.Bill.attention,
-                            Email: config.Bill.email,
-                            Telephone: config.Bill.phoneno,
-                            Address: {
-                                Address1: config.Bill.address1,
-                                Address2: record.custPO, //config.Bill.address2,config.Bill.address2,
-                                City: config.Bill.city,
-                                StateOrProvince: config.Bill.state,
-                                PostalCode: config.Bill.zip,
-                                Country: config.Bill.country
-                            }
-                        }
+                log.audit(logTitle, '** Order Details: ' + JSON.stringify(poObj.items));
+
+                for (let i = 0, j = itemLength; i < j; i++) {
+                    let itemData = poObj.items[i];
+
+                    let itemDetails = {
+                        lineItemNum: (i + 1).toString(),
+                        lineItemDescription: itemData.description,
+                        supplierPartId: itemData.quotenumber,
+                        supplierPartIdExt: itemData.quotenumber,
+                        quantity: itemData.quantity.toString(),
+                        unitPrice: itemData.rate.toString(),
+                        currency: poObj.currency
+                        // ,
+                        // finalRecipient: {
+                        //     company: vendorConfig.Bill.addressee,
+                        //     contactName: vendorConfig.Bill.attention,
+                        //     email: vendorConfig.Bill.email,
+                        //     telephone: vendorConfig.Bill.phoneno,
+                        //     address: {
+                        //         address1: vendorConfig.Bill.address1,
+                        //         address2: poObj.custPO, //config.Bill.address2,config.Bill.address2,
+                        //         city: vendorConfig.Bill.city,
+                        //         stateOrProvince: vendorConfig.Bill.state,
+                        //         postalCode: vendorConfig.Bill.zip,
+                        //         country: vendorConfig.Bill.country
+                        //     }
+                        // }
                     };
                     // skip the item if no quote number
-                    if (!itemDetails.SupplierPartId) continue;
+
                     log.audit(logTitle, '>> item Data: ' + JSON.stringify(itemData));
                     log.audit(logTitle, '>> item Details: ' + JSON.stringify(itemDetails));
 
-                    var itemDataIdx = -1;
-                    for (var ii = 0, jj = arrItemList.length; ii < jj; ii++) {
-                        if (itemDetails.SupplierPartId == arrItemList[ii].SupplierPartId) {
+                    if (!itemDetails.supplierPartId) continue;
+
+                    let itemDataIdx = -1;
+                    for (let ii = 0, jj = arrItemList.length; ii < jj; ii++) {
+                        if (itemDetails.supplierPartId == arrItemList[ii].supplierPartId) {
                             itemDataIdx = ii;
                             break;
                         }
                     }
 
                     log.audit(logTitle, '>> itemDataIdx: ' + itemDataIdx);
-
-                    // if( itemDataIdx >= 0 ) {
-                    //     arrItemList[ii].Quantity+=itemDetails.Quantity;
-                    // } else {
                     arrItemList.push(itemDetails);
-                    // }
                 }
 
+                log.audit(logTitle, '** arrItemList: ' + JSON.stringify(arrItemList));
+
                 return arrItemList;
+            })(),
+            CustomFields: (function () {
+                let logTitle = [LogTitle, 'GenerateBody', 'CustomFields'].join('::');
+
+                let arr = [];
+
+                if (field_mapping && field_mapping.CUSTOM) {
+                    log.audit(logTitle, '>> field_mapping.CUSTOM: ' + JSON.stringify(field_mapping.CUSTOM));
+
+                    let mappedValues = {};
+
+                    for (let fld in field_mapping.CUSTOM) {
+                        if (!field_mapping.CUSTOM[fld]) continue;
+
+                        let mappedvalue = record.getValue({ fieldId: field_mapping.CUSTOM[fld] });
+                        mappedValues[fld] = mappedvalue || '';
+
+                        log.audit(logTitle, '>> mappedvalue: ' + JSON.stringify(mappedvalue));
+
+                        arr.push({
+                            name: fld,
+                            type: 'string',
+                            value: mappedvalue
+                        });
+                    }
+                }
+
+                // if (dellShipCode == constants.Lists.DELL_SHIPPING_CODE.TWO_DAY) {
+                //     shipCode = '2D';
+                // } else if (dellShipCode == constants.Lists.DELL_SHIPPING_CODE.NEXT_DAY) {
+                //     shipCode = 'ND';
+                // } else {
+                //     shipCode = 'LC';
+                // }
+                // let createdfrom = poObj.createdFrom;
+
+                // arr.push({
+                //     name: 'SHIPPING_CODE',
+                //     type: 'string',
+                //     value: shipCode
+                // });
+                // //only for shippingCode = DC, i.e., FEDEX, UPS
+                // arr.push({
+                //     name: 'SHIPPING_CARRIER_NAME',
+                //     type: 'string',
+                //     value: ''
+                // });
+                // //only for shippingCode = dc, carrier acct no
+                // arr.push({
+                //     name: 'SHIPPING_CARRIER_ACCT_NU',
+                //     type: 'string',
+                //     value: ''
+                // });
+
+                return arr;
+            })(),
+            shippingMethod: (function () {
+                var logTitle = [LogTitle, 'GenerateBody', 'shippingMethod'].join('::'),
+                    returnValue = {};
+
+                //shipmethod
+                var shipMethod = record.getValue({ fieldId: 'shipmethod' });
+                log.audit(logTitle, '>> shipmethod ' + JSON.stringify(shipMethod));
+                if (!shipMethod) return {};
+
+                var searchShipMethodMap = ns_search.create({
+                    type: constants.Records.VENDOR_SHIPMETHOD,
+                    filters: [[constants.Fields.VendorShipMethod.SHIP_METHOD_MAP, 'anyof', shipMethod]],
+                    columns: [
+                        'name',
+                        { name: constants.Fields.VendorShipMethod.VENDOR_CONFIG },
+                        { name: constants.Fields.VendorShipMethod.SHIP_VALUE },
+                        { name: constants.Fields.VendorShipMethod.SHIP_METHOD_MAP }
+                    ]
+                });
+
+                log.audit(
+                    logTitle,
+                    '>> mapped shipping results: ' + JSON.stringify(searchShipMethodMap.runPaged().count)
+                );
+
+                if (searchShipMethodMap.runPaged().count) {
+                    var mappedShipMethod;
+                    searchShipMethodMap.run().each(function (result) {
+                        mappedShipMethod = result.getValue({
+                            name: constants.Fields.VendorShipMethod.SHIP_VALUE
+                        });
+                        return true;
+                    });
+
+                    log.audit(logTitle, '>> mapped shipping: ' + JSON.stringify(mappedShipMethod));
+
+                    if (mappedShipMethod) {
+                        returnValue.shippingMethod = mappedShipMethod;
+                    }
+                }
+
+                if (poObj['poShippingAccountNo']) {
+                    returnValue.carrier = poObj['poShippingMethod_text'] || returnValue.shippingMethod;
+                    returnValue.mean = poObj['poShippingMethod_text'] || returnValue.shippingMethod;
+                    returnValue.custShippingContractNum = poObj['poShippingAccountNo_text'];
+                    returnValue.shippingMethod = 'DC';
+                }
+
+                return returnValue;
             })()
-            // CustomFields: (function () {
-            //     var arr = [],
-            //         shipCode,
-            //         dellShipCode = record.dellShippingCode;
-
-            //     if (dellShipCode == constants.Lists.DELL_SHIPPING_CODE.TWO_DAY) {
-            //         shipCode = '2D';
-            //     } else if (dellShipCode == constants.Lists.DELL_SHIPPING_CODE.NEXT_DAY) {
-            //         shipCode = 'ND';
-            //     } else {
-            //         shipCode = 'LC';
-            //     }
-            //     var createdfrom = record.createdFrom;
-
-            //     arr.push({
-            //         name: 'EU_PO_NUMBER',
-            //         type: 'string',
-            //         value: _getEndUserPO({ createdfrom: createdfrom })
-            //     });
-            //     arr.push({
-            //         name: 'SHIPPING_CODE',
-            //         type: 'string',
-            //         value: shipCode
-            //     });
-            //     //only for shippingCode = DC, i.e., FEDEX, UPS
-            //     arr.push({
-            //         name: 'SHIPPING_CARRIER_NAME',
-            //         type: 'string',
-            //         value: ''
-            //     });
-            //     //only for shippingCode = dc, carrier acct no
-            //     arr.push({
-            //         name: 'SHIPPING_CARRIER_ACCT_NU',
-            //         type: 'string',
-            //         value: ''
-            //     });
-
-            //     return arr;
-            // })()
         };
-
         returnValue = bodyContentJSON; //JSON.stringify(bodyContentJSON);
+
+        return returnValue;
+    }
+
+    function processResponse(option) {
+        let logTitle = [LogTitle, 'processResponse'].join('::'),
+            poObj = option.purchaseOrder,
+            response = option.response,
+            responseBody = option.responseBody,
+            returnValue = option.returnResponse;
+        if (
+            (response && response.isError) ||
+            (responseBody && (responseBody.errors || responseBody.statusCode < 200 || responseBody.statusCode >= 300))
+        ) {
+            let errorMesg = response.errorMsg;
+            returnValue.errorName = 'Unexpected Error';
+            if (responseBody && responseBody.errors) {
+                errorMesg = JSON.stringify(responseBody.errors);
+            } else {
+                errorMesg = util.isArray(responseBody.statusMessage)
+                    ? responseBody.statusMessage.join('\n')
+                    : responseBody.statusMessage;
+            }
+            returnValue.errorMsg = errorMesg;
+            returnValue.message = 'Send PO failed';
+            returnValue.errorId = poObj.id;
+            returnValue.isError = true;
+        } else {
+            returnValue.message = 'Send PO successful';
+            returnValue.orderStatus = {};
+        }
         return returnValue;
     }
 
     function process(option) {
-        var logTitle = [LogTitle, 'process'].join('::');
+        let logTitle = [LogTitle, 'process'].join('::');
 
-        var recVendorConfig = option.recVendorConfig,
-            key = recVendorConfig.apiKey,
-            secret = recVendorConfig.apiSecret,
-            url = recVendorConfig.endPoint,
-            accessUrl = recVendorConfig.accessEndPoint,
-            testRequest = recVendorConfig.testRequest,
-            customerNo = recVendorConfig.customerNo,
-            record = option.record || option.recPO;
+        let vendorConfig = option.vendorConfig,
+            key = vendorConfig.apiKey,
+            secret = vendorConfig.apiSecret,
+            url = vendorConfig.endPoint,
+            accessUrl = vendorConfig.accessEndPoint,
+            testRequest = vendorConfig.testRequest,
+            customerNo = vendorConfig.customerNo,
+            poObj = option.purchaseOrder,
+            record = option.transaction;
 
-        log.audit(logTitle, '>> record : ' + JSON.stringify(record));
+        log.audit(logTitle, '>> record : ' + JSON.stringify(poObj));
 
-        var returnResponse = {
-            transactionNum: record.tranId,
-            transactionId: record.id
-        };
+        let sendPOResponse,
+            returnResponse = {
+                transactionNum: poObj.tranId,
+                transactionId: poObj.id
+            };
 
         try {
-            var token = generateToken({
+            let token = generateToken({
                 key: key,
                 secret: secret,
                 url: accessUrl,
-                poId: record.id
+                poId: poObj.id
             });
-            if (!token) throw 'Missing token for authentication.';
+            if (!token)
+                throw ns_error.create({
+                    name: 'MISSING_TOKEN',
+                    message: 'Missing token for authentication.'
+                });
 
             // build the request body
-            var sendPOBody = generateBody({
-                record: record,
+            let sendPOBody = generateBody({
+                purchaseOrder: poObj,
+                transaction: record,
                 customerNo: customerNo,
-                config: recVendorConfig,
+                vendorConfig: vendorConfig,
                 testRequest: testRequest
             });
             log.audit(logTitle, sendPOBody);
@@ -273,48 +549,70 @@ define([
             ctc_util.vcLog({
                 title: [LogTitle, 'PO Payload'].join(' - '),
                 content: sendPOBody,
-                transaction: record.id
+                transaction: poObj.id
             });
 
-            if (!sendPOBody) throw 'Unable to generate PO Body Request';
+            if (!sendPOBody)
+                throw ns_error.create({
+                    name: 'GENERATE_REQUEST_ERR',
+                    message: 'Unable to generate PO Body Request'
+                });
 
-            var sendPOReq = ctc_util.sendRequest({
+            sendPOResponse = ctc_util.sendRequest({
                 header: [LogTitle, 'Send PO'].join(' : '),
                 method: 'post',
-                recordId: record.id,
+                recordId: poObj.id,
                 query: {
                     url: url,
                     headers: {
                         Authorization: token.token_type + ' ' + token.access_token,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accepts-Version': '2.0'
                     },
                     body: JSON.stringify(sendPOBody)
                 }
             });
-            if (sendPOReq.isError) {
-                var errorMesg = sendPOReq.errorMsg;
+            returnResponse = {
+                transactionNum: poObj.tranId,
+                transactionId: poObj.id,
+                logId: sendPOResponse.logId,
+                responseBody: sendPOResponse.PARSED_RESPONSE || sendPOResponse.RESPONSE.body,
+                responseCode: sendPOResponse.RESPONSE.code,
+                isError: false,
+                error: null,
+                errorId: poObj.id,
+                errorName: null,
+                errorMsg: null
+            };
 
-                if (sendPOReq.PARSED_RESPONSE) {
-                    if (
-                        sendPOReq.PARSED_RESPONSE.Fault &&
-                        sendPOReq.PARSED_RESPONSE.Fault.faultstring
-                    ) {
-                        errorMesg = sendPOReq.PARSED_RESPONSE.Fault.faultstring;
-                    }
-                }
-
-                throw 'Send PO Error - ' + errorMesg;
-            }
-
-            returnResponse.responseBody = sendPOReq.PARSED_RESPONSE || sendPOReq.RESPONSE.body;
-            returnResponse.responseCode = sendPOReq.RESPONSE.code;
-            returnResponse.message = 'Success';
-
-        } catch (error) {
-            var errorMsg = ctc_util.extractError(error);
-
+            returnResponse = processResponse({
+                purchaseOrder: poObj,
+                response: sendPOResponse,
+                responseBody: returnResponse.responseBody,
+                returnResponse: returnResponse
+            });
+        } catch (e) {
+            log.error(logTitle, 'FATAL ERROR:: ' + e.name + ': ' + e.message);
+            returnResponse = returnResponse || {
+                transactionNum: poObj.tranId,
+                transactionId: poObj.id,
+                isError: true,
+                error: e,
+                errorId: poObj.id,
+                errorName: e.name,
+                errorMsg: e.message
+            };
             returnResponse.isError = true;
-            returnResponse.message = errorMsg;
+            if (sendPOResponse) {
+                returnResponse.logId = sendPOResponse.logId || null;
+                returnResponse.responseBody = sendPOResponse.PARSED_RESPONSE;
+                if (sendPOResponse.RESPONSE) {
+                    if (!returnResponse.responseBody) {
+                        returnResponse.responseBody = sendPOResponse.RESPONSE.body || null;
+                    }
+                    returnResponse.responseCode = sendPOResponse.RESPONSE.code || null;
+                }
+            }
         } finally {
             log.audit(logTitle, '>> sendPoResp: ' + JSON.stringify(returnResponse));
         }

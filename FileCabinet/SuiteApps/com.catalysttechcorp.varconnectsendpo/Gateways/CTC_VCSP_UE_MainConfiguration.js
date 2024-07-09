@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2022 Catalyst Tech Corp
+ * Copyright (c) 2023 Catalyst Tech Corp
  * All Rights Reserved.
  *
  * This software is the confidential and proprietary information of
@@ -8,40 +8,32 @@
  * accordance with the terms of the license agreement you entered into
  * with Catalyst Tech.
  *
- * @NApiVersion 2.x
- * @NModuleScope Public
+ * @NApiVersion 2.1
  * @NScriptType UserEventScript
+ * @NModuleScope Public
  */
 define(['../Library/CTC_VCSP_Lib_LicenseValidator', '../Library/CTC_VCSP_Constants'], function (
     libLicenseValidator,
-    constants
+    VCSP_Global
 ) {
     //Validates license and displays the corresponding status
     function _validateLicense(options) {
-        var newRecord = options.newRecord,
-            license = newRecord.getValue({ fieldId: constants.Fields.MainConfig.LICENSE }),
-            response = libLicenseValidator.callValidationSuitelet({
-                license: license,
-                external: true
-            }),
+        let newRecord = options.newRecord,
+            isLicenseValid = libLicenseValidator.isLicenseValid(),
             licenseText;
-
-        log.debug('response', response);
-
-        if (response == 'valid') {
+        log.debug('response', isLicenseValid);
+        if (isLicenseValid) {
             licenseText =
                 "<span style='background-color:lightgreen'><b>VERIFIED: Your License for VAR Connect Send PO is currently valid.</b></span>";
-        } else if (response == 'invalid') {
+        } else {
             licenseText =
                 "<span style='background-color:red; color: white;'><b>WARNING: Your License is no longer valid or have expired. Please contact damon@nscatalyst.com to get a new license. Your product has been disabled.</b></span>";
         }
-
         newRecord.setValue({
-            fieldId: constants.Fields.MainConfig.LICENSE_TEXT,
+            fieldId: VCSP_Global.Fields.MainConfig.LICENSE_TEXT,
             value: licenseText
         });
     }
-
     /**
      * Function definition to be triggered before record is loaded.
      *
@@ -56,7 +48,7 @@ define(['../Library/CTC_VCSP_Lib_LicenseValidator', '../Library/CTC_VCSP_Constan
             scriptContext.type === scriptContext.UserEventType.EDIT ||
             scriptContext.type === scriptContext.UserEventType.VIEW
         ) {
-            var newRecord = scriptContext.newRecord;
+            let newRecord = scriptContext.newRecord;
             _validateLicense({ newRecord: newRecord });
         }
     }

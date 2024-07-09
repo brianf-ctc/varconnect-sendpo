@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2022 Catalyst Tech Corp
+ * Copyright (c) 2023 Catalyst Tech Corp
  * All Rights Reserved.
  *
  * This software is the confidential and proprietary information of
@@ -8,16 +8,11 @@
  * accordance with the terms of the license agreement you entered into
  * with Catalyst Tech.
  *
- * @NApiVersion 2.x
+ * @NApiVersion 2.1
  * @NModuleScope Public
  */
-define(['N/record', 'N/runtime', 'N/url', 'N/redirect'], function (
-    NS_Record,
-    NS_Runtime,
-    NS_Url,
-    NS_Redir
-) {
-    var Helper = {
+define(['N/record', 'N/runtime', 'N/url', 'N/redirect'], function (NS_Record, NS_Runtime, NS_Url, NS_Redir) {
+    let Helper = {
         isEmpty: function (stValue) {
             return (
                 stValue === '' ||
@@ -28,19 +23,24 @@ define(['N/record', 'N/runtime', 'N/url', 'N/redirect'], function (
                 (util.isArray(stValue) && stValue.length == 0) ||
                 (util.isObject(stValue) &&
                     (function (v) {
-                        for (var k in v) return false;
+                        for (let k in v) return false;
                         return true;
                     })(stValue))
             );
         },
         inArray: function (stValue, arrValue) {
             if (!stValue || !arrValue) return false;
-            for (var i = arrValue.length - 1; i >= 0; i--) if (stValue == arrValue[i]) break;
+            let i = arrValue.length - 1;
+            for (; i >= 0; i--) {
+                if (stValue == arrValue[i]) {
+                    break;
+                }
+            }
             return i > -1;
         }
     };
 
-    var EventRouter = {
+    let EventRouter = {
         Type: {
             BEFORE_LOAD: 'onBeforeLoad',
             BEFORE_SUBMIT: 'onBeforeSubmit',
@@ -52,7 +52,7 @@ define(['N/record', 'N/runtime', 'N/url', 'N/redirect'], function (
         ScriptContext: null,
         Action: {},
         initialize: function (scriptContext) {
-            var Current = {
+            let Current = {
                 eventType: scriptContext.type,
                 execType: NS_Runtime.executionContext,
                 recordType: scriptContext.newRecord.type,
@@ -64,7 +64,7 @@ define(['N/record', 'N/runtime', 'N/url', 'N/redirect'], function (
                     recordId: Current.recordId
                 });
             }
-            log.audit('EventRouter.intialize', Current);
+            log.audit('EventRouter.initialize', Current);
             this.scriptContext = scriptContext;
             this.Current = Current;
 
@@ -73,7 +73,7 @@ define(['N/record', 'N/runtime', 'N/url', 'N/redirect'], function (
         execute: function (eventType) {
             if (!eventType) return; // exit
 
-            var Current = this.Current,
+            let Current = this.Current,
                 scriptContext = this.scriptContext,
                 UserEventType = scriptContext.UserEventType,
                 ContextType = NS_Runtime.ContextType,
@@ -83,10 +83,9 @@ define(['N/record', 'N/runtime', 'N/url', 'N/redirect'], function (
             if (eventType == this.Type.CUSTOM) {
                 if (!this.Action[eventType]) return;
                 if (!Helper.inArray(Current.execType, [ContextType.USER_INTERFACE])) return;
-                if (!Helper.inArray(Current.eventType, [UserEventType.VIEW, UserEventType.EDIT]))
-                    return;
+                if (!Helper.inArray(Current.eventType, [UserEventType.VIEW, UserEventType.EDIT])) return;
 
-                var paramAction = scriptContext.request.parameters[this.ParamStr];
+                let paramAction = scriptContext.request.parameters[this.ParamStr];
                 RouterEventFn = this.Action[eventType][paramAction];
 
                 if (!paramAction || !RouterEventFn) return;
@@ -100,15 +99,19 @@ define(['N/record', 'N/runtime', 'N/url', 'N/redirect'], function (
                         id: Current.recordId
                     });
                 }
-            } else if (this.Action[Current.recordType] ) {
+            } else if (this.Action[Current.recordType]) {
                 RouterEventFn = this.Action[Current.recordType][eventType];
-                result = RouterEventFn.call(EventRouter, scriptContext, Current);
+                if (RouterEventFn) {
+                    result = RouterEventFn.call(EventRouter, scriptContext, Current);
+                } else {
+                    result = true;
+                }
                 return result;
             }
-        }, 
+        },
         addActionURL: function (name) {
             return [this.Current.recordUrl, '&', this.ParamStr, '=', name].join('');
-        }    
+        }
     };
 
     return EventRouter;

@@ -8,59 +8,124 @@
  * accordance with the terms of the license agreement you entered into
  * with Catalyst Tech.
  *
- * @NApiVersion 2.x
+ * @NApiVersion 2.1
  * @NModuleScope Public
  */
 define([
-    './CTC_Lib_Utils.js',
-    './CTC_VCSP_Constants.js',
-    './CTC_VCSP_Lib_VendorConfig.js',
-    '../Vendor Scripts/CTC_VCSP_Lib_Dell.js',
-    '../Vendor Scripts/CTC_VCSP_Lib_Arrow.js',
-    '../Vendor Scripts/CTC_VCSP_Lib_Synnex.js',
-    '../VO/CTC_VCSP_Response.js',
-    '../VO/CTC_VCSP_PO.js'
-], function (ctc_util, constants, libVendorConfig, libDell, libArrow, libSynnex, response, PO) {
-    var LogTitle = 'LibWS';
+    './CTC_Lib_Utils',
+    '../Library/CTC_Lib_ServerUtils',
+    './CTC_VCSP_Constants',
+    './CTC_VCSP_Lib_VendorConfig',
+    '../Vendor Scripts/CTC_VCSP_Lib_Dell',
+    '../Vendor Scripts/CTC_VCSP_Lib_Arrow',
+    '../Vendor Scripts/CTC_VCSP_Lib_Synnex',
+    '../Vendor Scripts/CTC_VCSP_Lib_IngramMicro',
+    '../Vendor Scripts/CTC_VCSP_Lib_DandH',
+    '../Vendor Scripts/CTC_VCSP_Lib_Scansource',
+    '../Vendor Scripts/CTC_VCSP_Lib_Carahsoft',
+    '../VO/CTC_VCSP_Response',
+    '../VO/CTC_VCSP_PO'
+], function (
+    CTC_Util,
+    CTC_SSUtil,
+    VCSP_Global,
+    libVendorConfig,
+    libDell,
+    libArrow,
+    libSynnex,
+    libIngram,
+    libDandH,
+    libScanSource,
+    libCarahsoft,
+    response,
+    PO
+) {
+    let LogTitle = 'LibWS';
 
-    function _validateVendorConfig(options) {
-        var logTitle = [LogTitle, 'validateVendorConfig'].join('::');
+    function _validateVendorConfig(option) {
+        let logTitle = [LogTitle, 'validateVendorConfig'].join('::');
 
-        var recVendorConfig = options.recVendorConfig,
-            apiVendor = recVendorConfig.apiVendor,
-            endpoint = recVendorConfig.endPoint;
+        let vendorConfig = option.vendorConfig,
+            apiVendor = vendorConfig.apiVendor,
+            vendorList = VCSP_Global.Lists.API_VENDOR,
+            endpoint = vendorConfig.endPoint;
 
-        var requiredWebserviceInfo = {
-            endpoint : endpoint
+        if (vendorConfig.testRequest) {
+            endpoint = vendorConfig.qaEndPoint;
+        }
+        let requiredWebserviceInfo = {
+            endpoint: endpoint
         };
         switch (apiVendor) {
-            case constants.Lists.API_VENDOR.SYNNEX:
-                requiredWebserviceInfo.user = recVendorConfig.user;
-                requiredWebserviceInfo.password = recVendorConfig.password;
+            case vendorList.SYNNEX:
+                requiredWebserviceInfo.user = vendorConfig.user;
+                requiredWebserviceInfo.password = vendorConfig.password;
                 break;
-            case constants.Lists.API_VENDOR.DELL:
+            case vendorList.SCANSOURCE:
+                requiredWebserviceInfo.businessUnit = vendorConfig.businessUnit;
+                if (vendorConfig.testRequest) {
+                    requiredWebserviceInfo.oauthScope = vendorConfig.qaOauthScope;
+                    requiredWebserviceInfo.subscriptionKey = vendorConfig.qaSubscriptionKey;
+                } else {
+                    requiredWebserviceInfo.oauthScope = vendorConfig.oauthScope;
+                    requiredWebserviceInfo.subscriptionKey = vendorConfig.subscriptionKey;
+                }
+            case vendorList.DANDH:
+            case vendorList.INGRAM:
+                if (vendorConfig.testRequest) {
+                    requiredWebserviceInfo.tokenEndpoint = vendorConfig.qaAccessEndPoint;
+                    requiredWebserviceInfo.apiKey = vendorConfig.qaApiKey;
+                    requiredWebserviceInfo.apiSecret = vendorConfig.qaApiSecret;
+                } else {
+                    requiredWebserviceInfo.tokenEndpoint = vendorConfig.accessEndPoint;
+                    requiredWebserviceInfo.apiKey = vendorConfig.apiKey;
+                    requiredWebserviceInfo.apiSecret = vendorConfig.apiSecret;
+                }
+                break;
+            case vendorList.ARROW:
+                if (vendorConfig.testRequest) {
+                    requiredWebserviceInfo.apiKey = vendorConfig.qaApiKey;
+                    requiredWebserviceInfo.apiSecret = vendorConfig.qaApiSecret;
+                    requiredWebserviceInfo.oauthScope = vendorConfig.qaSubscriptionKey;
+                } else {
+                    requiredWebserviceInfo.apiKey = vendorConfig.apiKey;
+                    requiredWebserviceInfo.apiSecret = vendorConfig.apiSecret;
+                    requiredWebserviceInfo.oauthScope = vendorConfig.oauthScope;
+                }
+                break;
+            case vendorList.DELL:
             default:
-                requiredWebserviceInfo.apiKey = recVendorConfig.apiKey;
-                requiredWebserviceInfo.apiSecret = recVendorConfig.apiSecret;
+                if (vendorConfig.testRequest) {
+                    requiredWebserviceInfo.apiKey = vendorConfig.qaApiKey;
+                    requiredWebserviceInfo.apiSecret = vendorConfig.qaApiSecret;
+                } else {
+                    requiredWebserviceInfo.apiKey = vendorConfig.apiKey;
+                    requiredWebserviceInfo.apiSecret = vendorConfig.apiSecret;
+                }
                 break;
         }
         log.debug(logTitle, JSON.stringify(requiredWebserviceInfo));
 
-        for (var requiredParam in requiredWebserviceInfo) {
+        for (let requiredParam in requiredWebserviceInfo) {
             if (!requiredWebserviceInfo[requiredParam]) {
-                throw 'Incomplete webservice information for ' + recVendorConfig.vendorName;
+                throw (
+                    'Incomplete webservice information for ' +
+                    vendorConfig.vendorName +
+                    '. Missing one of the following: ' +
+                    Object.keys(requiredWebserviceInfo).join(', ')
+                );
             }
         }
 
         return;
     }
 
-    function _getVendorLibrary(options) {
-        var logTitle = [LogTitle, 'getVendorLibrary'].join('::');
+    function _getVendorLibrary(option) {
+        let logTitle = [LogTitle, 'getVendorLibrary'].join('::');
 
-        var recVendorConfig = options.recVendorConfig,
-            apiVendor = recVendorConfig.apiVendor,
-            vendorList = constants.Lists.API_VENDOR,
+        let vendorConfig = option.vendorConfig,
+            apiVendor = vendorConfig.apiVendor,
+            vendorList = VCSP_Global.Lists.API_VENDOR,
             libVendor;
 
         log.debug(logTitle, '>> API Vendor: ' + apiVendor);
@@ -75,65 +140,97 @@ define([
             case vendorList.SYNNEX:
                 libVendor = libSynnex;
                 break;
+            case vendorList.INGRAM:
+                libVendor = libIngram;
+                break;
+            case vendorList.DANDH:
+                libVendor = libDandH;
+                break;
+            case vendorList.SCANSOURCE:
+                libVendor = libScanSource;
+                break;
+            case vendorList.CARAHSOFT:
+                libVendor = libCarahsoft;
+                break;
             default:
-                log.error('Switch case vendor', 'API Vendor not setup');
+                log.error(logTitle, 'API Vendor not setup');
                 break;
         }
-
-        log.debug(logTitle, JSON.stringify(libVendor));
+        // log.debug(logTitle, JSON.stringify(libVendor) + ' :: Object Keys: ' + libVendor.constructor);
 
         return libVendor;
     }
 
-    function _updateRecPO(options) {
-        var recVendorConfig = options.recVendorConfig,
-            recPO = options.recPO,
-            nativePO = options.nativePO;
+    function _updatePurchaseOrder(option) {
+        let vendorConfig = option.vendorConfig,
+            poObj = option.purchaseOrder,
+            record = option.transaction;
 
-        recPO.setValuesFromVendorConfig({
-            recVendorConfig: recVendorConfig,
-            nativePO: nativePO
+        log.audit('_updatePurchaseOrder', '/// vendor config: ' + JSON.stringify(vendorConfig));
+
+        poObj.setValuesFromVendorConfig({
+            vendorConfig: vendorConfig,
+            transaction: record
         });
     }
 
-    function process(options) {
-        var nativePO = options.nativePO,
-            recPO = new PO(nativePO),
+    function process(option) {
+        let logTitle = [LogTitle, 'process'].join('::'),
+            record = option.transaction,
+            poObj = new PO(record),
             resp;
-
         try {
-            var recVendorConfig = libVendorConfig.getVendorConfiguration({
-                vendor: recPO.entity,
-                subsidiary: recPO.subsidiary
+            let vendorConfig = libVendorConfig.getVendorConfiguration({
+                vendor: poObj.entity,
+                subsidiary: poObj.subsidiary,
+                transaction: record
             });
 
-            if (recVendorConfig) {
-                _updateRecPO({
-                    recPO: recPO,
-                    nativePO: nativePO,
-                    recVendorConfig: recVendorConfig
+            log.audit(logTitle, '/// Vendor Config: ' + JSON.stringify(vendorConfig));
+
+            if (vendorConfig) {
+                poObj = CTC_Util.extendPO({
+                    purchaseOrder: poObj,
+                    vendorConfig: vendorConfig,
+                    transaction: record
+                });
+                if (vendorConfig.additionalPOFields) {
+                    vendorConfig.additionalPOFields = CTC_SSUtil.renderTemplate({
+                        body: vendorConfig.additionalPOFields,
+                        purchaseOrder: poObj
+                    });
+                }
+                _updatePurchaseOrder({
+                    purchaseOrder: poObj,
+                    transaction: record,
+                    vendorConfig: vendorConfig
                 });
 
-                var libVendor = _getVendorLibrary({
-                    recVendorConfig: recVendorConfig
+                let libVendor = _getVendorLibrary({
+                    vendorConfig: vendorConfig
                 });
 
                 if (!libVendor) throw 'Missing or invalid vendor configuration';
 
                 _validateVendorConfig({
-                    recVendorConfig: recVendorConfig
+                    vendorConfig: vendorConfig
                 });
 
-                resp = new response(libVendor.process({
-                    recVendorConfig: recVendorConfig,
-                    recPO: recPO
-                }));
-                
+                resp = new response(
+                    libVendor.process({
+                        vendorConfig: vendorConfig,
+                        purchaseOrder: poObj,
+                        transaction: record
+                    })
+                );
             }
-        } catch (e) {
+        } catch (error) {
+            var errorMsg = CTC_Util.extractError(error);
+            CTC_Util.logError(logTitle, JSON.stringify(error));
+
             resp = new response({
                 code: 'error',
-                message: ctc_util.extractError(e)
+                message: CTC_Util.extractError(error)
             });
         }
 
