@@ -47,6 +47,7 @@ define([], function () {
                 EVENT_TYPE: 'custrecord_ctc_vcsp_event',
                 TEST_REQUEST: 'custrecord_ctc_vcsp_test',
                 IS_SPECIAL_ITEM_NAME: 'custrecord_vcsp_is_item_name_special',
+                IS_ASYNC: 'custrecord_vcsp_is_async',
                 WEBSERVICE_ENDPOINT: 'custrecord_ctc_vcsp_endpoint',
                 ACCESS_ENDPOINT: 'custrecord_ctc_vcsp_access_endpoint',
                 OAUTH_SCOPE: 'custrecord_ctc_vcsp_access_scope',
@@ -56,15 +57,19 @@ define([], function () {
                 CUSTOMER_NO: 'custrecord_ctc_vcsp_customer_number',
                 API_KEY: 'custrecord_ctc_vcsp_api_key',
                 API_SECRET: 'custrecord_ctc_vcsp_api_secret',
+                WEBHOOK_SECRET_KEY: 'custrecord_ctc_vcsp_webhook_secret_key',
                 FIELD_MAP: 'custrecord_ctc_vcsp_fieldmapping',
                 QA_WEBSERVICE_ENDPOINT: 'custrecord_ctc_vcsp_endpoint_qa',
                 QA_ACCESS_ENDPOINT: 'custrecord_ctc_vcsp_access_endpoint_qa',
                 QA_OAUTH_SCOPE: 'custrecord_ctc_vcsp_access_scope_qa',
                 QA_API_KEY: 'custrecord_ctc_vcsp_api_key_qa',
                 QA_API_SECRET: 'custrecord_ctc_vcsp_api_secret_qa',
+                QA_WEBHOOK_SECRET_KEY: 'custrecord_ctc_vcsp_webhook_secret_qa',
                 QA_SUBSCRIPTION_KEY: 'custrecord_ctc_vcsp_access_subscr_qa',
                 PONUM_FIELD: 'custrecord_ctc_vcsp_ponum_field',
                 ITEM_COLUMN: 'custrecord_ctc_vcsp_item_field',
+                SKU_COLUMN: 'custrecord_ctc_vcsp_sku_field',
+                PRIORITIZE_SKU_COLUMN: 'custrecord_ctc_vcsp_sku_is_priority',
                 QUOTE_COLUMN: 'custrecord_ctc_vcsp_quoteno_field',
                 MEMO_FIELD: 'custrecord_ctc_vcsp_memo_field',
                 SHIP_CONTACT_FIELD: 'custrecord_ctc_vcsp_shipcontact_field',
@@ -145,7 +150,8 @@ define([], function () {
             PO_EVENT: {
                 ON_CREATE: 1,
                 ON_APPROVE: 2,
-                MANUAL: 3
+                MANUAL: 3,
+                MANUALBG: 4
             },
             API_VENDOR: {
                 DELL: '1',

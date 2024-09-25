@@ -12,28 +12,28 @@
  * @NModuleScope Public
  */
 define([], function () {
-    function Response(options) {
-        this.logId = options.logId;
-        this.status = options.status;
-        this.message = options.message;
-        this.transactionNum = options.transactionNum;
-        this.orderStatus = options.orderStatus;
-        this.responseBody = options.responseBody;
-        this.responseCode = options.responseCode;
+    function Response(option) {
+        this.logId = option.logId;
+        this.status = option.status;
+        this.message = option.message;
+        this.transactionNum = option.transactionNum;
+        this.orderStatus = option.orderStatus;
+        this.responseBody = option.responseBody;
+        this.responseCode = option.responseCode;
         this.isError =
-            options.isError ||
-            (function (options) {
+            option.isError ||
+            (function (option) {
                 return (
-                    options.status == 'error' ||
-                    !options.responseCode ||
-                    options.responseCode < 200 ||
-                    options.responseCode >= 300
+                    option.status == 'error' ||
+                    !option.responseCode ||
+                    option.responseCode < 200 ||
+                    option.responseCode >= 300
                 );
             })(this);
-        this.error = options.error;
-        this.errorId = options.errorId;
-        this.errorName = options.errorName;
-        this.errorMsg = options.errorMsg;
+        this.error = option.error;
+        this.errorId = option.errorId;
+        this.errorName = option.errorName;
+        this.errorMsg = option.errorMsg;
     }
 
     return Response;

@@ -22,7 +22,11 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
             if (dateStr) {
                 try {
                     let dateComponents = dateStr.split(/\D+/),
-                        parsedDate = new Date(dateComponents[0], dateComponents[1], dateComponents[2]);
+                        parsedDate = new Date(
+                            dateComponents[0],
+                            dateComponents[1],
+                            dateComponents[2]
+                        );
                     if (parsedDate) {
                         formattedDate = NS_Format.format({
                             value: parsedDate,
@@ -130,7 +134,7 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
         for (let i = 0, itemCount = poObj.items.length; i < itemCount; i += 1) {
             let item = poObj.items[i];
             let objLine = {};
-            objLine.customerLineNumber = i + 1; // unable to assign lineuniquekey
+            objLine.customerLineNumber = CTC_Util.leftPadString(i + 1, '0', 3); // unable to assign lineuniquekey
             objLine.quantity = item.quantity;
             objLine.endUserPrice = item.rate;
             // objLine.specialBidNumber = 'NA';
@@ -143,7 +147,10 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
                 objLine.ingramPartNumber = item.ingramPartNumber;
             } else if (vendorConfig.isSpecialItemName) {
                 objLine.ingramPartNumber = item.item;
-            } else {
+            }
+            if (item.vendorSKU) {
+                objLine.vendorPartNumber = item.vendorSKU;
+            } else if (!vendorConfig.isSpecialItemName) {
                 objLine.vendorPartNumber = item.item;
             }
             log.debug(logTitle, item);
@@ -204,7 +211,7 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
             shipmentDetails: {
                 // carrierCode: 'NA',
                 // freightAccountNumber: 'NA',
-                shipComplete: poObj.shipComplete
+                // shipComplete: poObj.shipComplete
                 // requestedDeliveryDate: 'NA',
                 // signatureRequired: 'NA',
                 // shippingInstructions: 'NA',
@@ -212,20 +219,26 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
             additionalAttributes: [
                 {
                     attributeName: 'allowDuplicateCustomerOrderNumber',
-                    attributeValue: true
+                    attributeValue: 'true'
                 },
                 {
                     attributeName: 'allowPartialOrder',
-                    attributeValue: false // setting to true allows ingram to create 0-line orders
+                    attributeValue: 'false' // setting to true allows ingram to create 0-line orders
                 }
             ]
         };
+        if (poObj.shipComplete) {
+            ingramTemplate.shipComplete = true;
+        }
         if (vendorConfig.Bill.id) {
             ingramTemplate.billToAddressId = vendorConfig.Bill.id;
         }
         if (poObj.additionalVendorDetails) {
             additionalVendorDetails = CTC_Util.safeParse(poObj.additionalVendorDetails);
-        } else if (vendorConfig.additionalPOFields && vendorConfig.includeAdditionalDetailsOnSubmit) {
+        } else if (
+            vendorConfig.additionalPOFields &&
+            vendorConfig.includeAdditionalDetailsOnSubmit
+        ) {
             additionalVendorDetails = CTC_Util.getVendorAdditionalPOFieldDefaultValues({
                 fields: CTC_Util.safeParse(vendorConfig.additionalPOFields),
                 filterValues: {
@@ -243,7 +256,11 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
             for (let fieldId in additionalVendorDetails) {
                 let fieldHierarchy = fieldId.split('.');
                 let fieldContainer = ingramTemplate;
-                for (let i = 0, len = fieldHierarchy.length, fieldIdIndex = len - 1; i < len; i += 1) {
+                for (
+                    let i = 0, len = fieldHierarchy.length, fieldIdIndex = len - 1;
+                    i < len;
+                    i += 1
+                ) {
                     let fieldIdComponent = fieldHierarchy[i];
                     if (i == fieldIdIndex) {
                         // container is an array, distribute values across container elements
@@ -257,8 +274,11 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
                                 let lineObj = fieldContainer[j];
                                 switch (fieldIdComponent) {
                                     default:
-                                        if (!CTC_Util.isEmpty(additionalVendorDetails[fieldId][j])) {
-                                            lineObj[fieldIdComponent] = additionalVendorDetails[fieldId][j];
+                                        if (
+                                            !CTC_Util.isEmpty(additionalVendorDetails[fieldId][j])
+                                        ) {
+                                            lineObj[fieldIdComponent] =
+                                                additionalVendorDetails[fieldId][j];
                                         }
                                         break;
                                 }
@@ -270,7 +290,10 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
                         // container is an array, reference as is
                         if (fieldIdComponent.indexOf('__') == 0) {
                             fieldIdComponent = fieldIdComponent.slice(2);
-                            if (fieldContainer[fieldIdComponent] && util.isArray(fieldContainer[fieldIdComponent])) {
+                            if (
+                                fieldContainer[fieldIdComponent] &&
+                                util.isArray(fieldContainer[fieldIdComponent])
+                            ) {
                                 fieldContainer = fieldContainer[fieldIdComponent];
                             } else {
                                 fieldContainer[fieldIdComponent] = [];
@@ -279,7 +302,10 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
                             // container is an array, reference first element
                         } else if (fieldIdComponent.indexOf('_') == 0) {
                             fieldIdComponent = fieldIdComponent.slice(1);
-                            if (fieldContainer[fieldIdComponent] && util.isArray(fieldContainer[fieldIdComponent])) {
+                            if (
+                                fieldContainer[fieldIdComponent] &&
+                                util.isArray(fieldContainer[fieldIdComponent])
+                            ) {
                                 fieldContainer = fieldContainer[fieldIdComponent][0];
                             } else {
                                 fieldContainer[fieldIdComponent] = [{}];
@@ -307,6 +333,9 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
                         obj: obj[key],
                         objConstructor: objConstructor
                     });
+                    if (obj[key] === null || obj[key] === '' || obj[key] === undefined) {
+                        delete obj[key];
+                    }
                 }
             }
         };
@@ -325,7 +354,8 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
         let logTitle = [LogTitle, 'processResponse'].join('::'),
             returnValue = option.returnResponse,
             responseBody = option.responseBody || returnValue.responseBody,
-            orderStatus = {};
+            orderStatus = {},
+            vendorConfig = option.vendorConfig;
         if (responseBody) {
             orderStatus.ponumber = responseBody.ingramOrderNumber;
             orderStatus.errorMessage = null;
@@ -335,7 +365,11 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
             orderStatus.numFailedLines = 0;
             let lineNotes = [];
             if (responseBody.orders && responseBody.orders.length) {
-                for (let orderCtr = 0, orderCount = responseBody.orders.length; orderCtr < orderCount; orderCtr += 1) {
+                for (
+                    let orderCtr = 0, orderCount = responseBody.orders.length;
+                    orderCtr < orderCount;
+                    orderCtr += 1
+                ) {
                     let orderDetails = responseBody.orders[orderCtr],
                         orderDate = Helper.formatFromIngramDate(orderDetails.ingramOrderDate);
                     if (orderDetails.notes) {
@@ -343,7 +377,11 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
                     }
                     if (orderDetails.lines && orderDetails.lines.length) {
                         // valid lines
-                        for (let line = 0, lineCount = orderDetails.lines.length; line < lineCount; line += 1) {
+                        for (
+                            let line = 0, lineCount = orderDetails.lines.length;
+                            line < lineCount;
+                            line += 1
+                        ) {
                             let lineDetails = orderDetails.lines[line],
                                 shipmentDetails = {};
                             if (lineDetails) {
@@ -391,11 +429,20 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
                 }
                 log.audit(logTitle, '>> Parsed response: ' + JSON.stringify(orderStatus));
                 returnValue.transactionNum = orderStatus.ponumber;
+            } else if (vendorConfig.isAsync) {
+                delete orderStatus.ponumber;
+                orderStatus.quotenumber = responseBody.quoteNumber;
+                orderStatus.confirmationNumber = responseBody.confirmationNumber;
+                orderStatus.notes = responseBody.message;
             }
             returnValue.message = 'Send PO successful';
             if (responseBody.errors && responseBody.errors.length) {
                 let errMessage = [];
-                for (let errCtr = 0, errCount = responseBody.errors.length; errCtr < errCount; errCtr += 1) {
+                for (
+                    let errCtr = 0, errCount = responseBody.errors.length;
+                    errCtr < errCount;
+                    errCtr += 1
+                ) {
                     let errorResponse = responseBody.errors[errCtr];
                     if (errorResponse && errorResponse.message) {
                         errMessage.push(errorResponse.message);
@@ -412,8 +459,11 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
                     orderStatus.numFailedLines +
                     ' failed line(s):<br />' +
                     lineNotes.join('<br />');
+            } else if (vendorConfig.isAsync) {
+                returnValue.message = 'Send PO successful';
             } else {
-                returnValue.message = 'Send PO successful with ' + orderStatus.numSuccessfulLines + ' line item(s).';
+                returnValue.message =
+                    'Send PO successful with ' + orderStatus.numSuccessfulLines + ' line item(s).';
             }
             returnValue.orderStatus = orderStatus;
         }
@@ -459,6 +509,7 @@ define(['N/format', '../Library/CTC_Lib_Utils'], function (NS_Format, CTC_Util) 
 
             returnResponse = processResponse({
                 purchaseOrder: poObj,
+                vendorConfig: vendorConfig,
                 responseBody: returnResponse.responseBody,
                 returnResponse: returnResponse
             });

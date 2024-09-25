@@ -12,15 +12,16 @@
  * @NModuleScope Public
  */
 
-define(['N/format', 'N/error', '../Library/CTC_VCSP_Constants', '../Library/CTC_Lib_Utils'], function (
-    NS_Format,
-    NS_Error,
-    VCSP_Global,
-    CTC_Util
-) {
+define([
+    'N/format',
+    'N/error',
+    '../Library/CTC_VCSP_Constants',
+    '../Library/CTC_Lib_Utils'
+], function (NS_Format, NS_Error, VCSP_Global, CTC_Util) {
     const LogTitle = 'WS:DandH';
     let errorMessages = {
-        STATUS_401: 'Authorization information is invalid. Please check Send PO Vendor configuration.',
+        STATUS_401:
+            'Authorization information is invalid. Please check Send PO Vendor configuration.',
         STATUS_404: 'URL not found. Please check Send PO Vendor configuration.'
     };
 
@@ -150,7 +151,7 @@ define(['N/format', 'N/error', '../Library/CTC_VCSP_Constants', '../Library/CTC_
         let arrLines = poObj.items.map(function (item) {
             let objLine = {
                 // unitPrice: item.rate,
-                item: item.dandhPartNumber || item.item,
+                item: item.vendorSKU || item.dandhPartNumber || item.item,
                 externalLineNumber: item.lineuniquekey,
                 orderQuantity: item.quantity
                 // clientReferenceData: {}, // any additional data to be stored with the order
@@ -159,56 +160,56 @@ define(['N/format', 'N/error', '../Library/CTC_VCSP_Constants', '../Library/CTC_
         });
 
         dnhTemplate = {
-            customerPurchaseOrder: poObj.custPO || poObj.tranId, // Required
+            customerPurchaseOrder: poObj.tranId, // Required
             shipping: {
                 // serviceType: poObj.shipMethod, // Enum: [pickup, ground, nextDay, secondDay, nextDaySaturdayDelivery, firstClassMail, priorityMail]
                 // carrier: poObj.shipMethod, // Enum: [pickup, ups, fedex, usps, upsm, upss, fxsp, purolator]
                 allowPartialShipment: true,
                 allowBackOrder: true
             },
-            endUserData: {
-                // electronicSoftwareDistributionEmail: '',
-                // dateOfSale: '',
-                address: {
-                    // All fields in address are often required if customer has no default address setup with D&H
-                    attention: vendorConfig.Bill.attention,
-                    country: vendorConfig.Bill.country,
-                    city: vendorConfig.Bill.city,
-                    street: [vendorConfig.Bill.address1, vendorConfig.Bill.address2].join('\r\n'),
-                    postalCode: vendorConfig.Bill.zip,
-                    region: vendorConfig.Bill.state
-                },
-                // serialNumbers: '', // []
-                // reseller: {
-                //     phone: '',
-                //     accountNumber: '',
-                //     email: '',
-                // },
-                // userName: '',
-                // masterContractNumber: '',
-                // authorizationNumber: '',
-                // domain: {
-                //     domainName: '',
-                //     domainAdministratorEmailAddress: '',
-                // },
-                // contact: {
-                //     phone: '',
-                //     fax: '',
-                //     email: '',
-                // },
-                purchaseOrderNumber: poObj.tranid
-                // organization: '',
-                // modelNumber: '',
-                // department: '',
-                // supportPlan: {
-                //     supportStartDate: '',
-                //     updateType: '',
-                //     warrantySKU: '',
-                // },
-                // cisco: {
-                //     ccoId: '',
-                // },
-            },
+            // endUserData: {
+            // electronicSoftwareDistributionEmail: '',
+            // dateOfSale: '',
+            // address: {
+            // All fields in address are often required if customer has no default address setup with D&H
+            //     attention: poObj.billAttention || poObj.billAddressee,
+            //     country: poObj.billCountry,
+            //     city: poObj.billCity,
+            //     street: [poObj.billAddr1, poObj.billAddr2].join('\r\n'),
+            //     postalCode: poObj.billZip,
+            //     region: poObj.billState
+            // },
+            // serialNumbers: '', // []
+            // reseller: {
+            //     phone: '',
+            //     accountNumber: '',
+            //     email: '',
+            // },
+            // userName: '',
+            // masterContractNumber: '',
+            // authorizationNumber: '',
+            // domain: {
+            //     domainName: '',
+            //     domainAdministratorEmailAddress: '',
+            // },
+            // contact: {
+            //     phone: '',
+            //     fax: '',
+            //     email: '',
+            // },
+            // purchaseOrderNumber: poObj.custPO
+            // organization: '',
+            // modelNumber: '',
+            // department: '',
+            // supportPlan: {
+            //     supportStartDate: '',
+            //     updateType: '',
+            //     warrantySKU: '',
+            // },
+            // cisco: {
+            //     ccoId: '',
+            // },
+            // },
             deliveryAddress: {
                 address: {
                     // All fields in address are required
@@ -244,7 +245,11 @@ define(['N/format', 'N/error', '../Library/CTC_VCSP_Constants', '../Library/CTC_
             for (let fieldId in additionalVendorDetails) {
                 let fieldHierarchy = fieldId.split('.');
                 let fieldContainer = dnhTemplate;
-                for (let i = 0, len = fieldHierarchy.length, fieldIdIndex = len - 1; i < len; i += 1) {
+                for (
+                    let i = 0, len = fieldHierarchy.length, fieldIdIndex = len - 1;
+                    i < len;
+                    i += 1
+                ) {
                     let fieldIdComponent = fieldHierarchy[i];
                     if (i == fieldIdIndex) {
                         // container is an array, distribute values across container elements
@@ -256,25 +261,29 @@ define(['N/format', 'N/error', '../Library/CTC_VCSP_Constants', '../Library/CTC_
                             fieldIdComponent = fieldIdComponent.slice(2);
                             for (let j = 0, lines = fieldContainer.length; j < lines; j += 1) {
                                 let lineObj = fieldContainer[j];
+                                let lineValue = additionalVendorDetails[fieldId][j];
                                 switch (fieldIdComponent) {
-                                    case 'requestUnitPrice':
-                                        if (additionalVendorDetails[fieldId][j] == 'T') {
-                                            lineObj.unitPrice = poObj.items[j].rate;
-                                        }
-                                        break;
                                     default:
-                                        lineObj[fieldIdComponent] = additionalVendorDetails[fieldId][j];
+                                        if (
+                                            !CTC_Util.isEmpty(additionalVendorDetails[fieldId][j])
+                                        ) {
+                                            lineObj[fieldIdComponent] =
+                                                additionalVendorDetails[fieldId][j];
+                                        }
                                         break;
                                 }
                             }
-                        } else {
+                        } else if (!CTC_Util.isEmpty(additionalVendorDetails[fieldId])) {
                             fieldContainer[fieldIdComponent] = additionalVendorDetails[fieldId];
                         }
                     } else {
                         // container is an array, reference as is
                         if (fieldIdComponent.indexOf('__') == 0) {
                             fieldIdComponent = fieldIdComponent.slice(2);
-                            if (fieldContainer[fieldIdComponent] && util.isArray(fieldContainer[fieldIdComponent])) {
+                            if (
+                                fieldContainer[fieldIdComponent] &&
+                                util.isArray(fieldContainer[fieldIdComponent])
+                            ) {
                                 fieldContainer = fieldContainer[fieldIdComponent];
                             } else {
                                 fieldContainer[fieldIdComponent] = [];
@@ -283,7 +292,10 @@ define(['N/format', 'N/error', '../Library/CTC_VCSP_Constants', '../Library/CTC_
                             // container is an array, reference first element
                         } else if (fieldIdComponent.indexOf('_') == 0) {
                             fieldIdComponent = fieldIdComponent.slice(1);
-                            if (fieldContainer[fieldIdComponent] && util.isArray(fieldContainer[fieldIdComponent])) {
+                            if (
+                                fieldContainer[fieldIdComponent] &&
+                                util.isArray(fieldContainer[fieldIdComponent])
+                            ) {
                                 fieldContainer = fieldContainer[fieldIdComponent][0];
                             } else {
                                 fieldContainer[fieldIdComponent] = [{}];
@@ -300,12 +312,17 @@ define(['N/format', 'N/error', '../Library/CTC_VCSP_Constants', '../Library/CTC_
                 log.audit(logTitle, 'Order Request: ' + JSON.stringify(fieldContainer));
             }
         }
+        if (poObj.custPO) {
+            dnhTemplate.endUserData = dnhTemplate.endUserData || {};
+            dnhTemplate.endUserData.purchaseOrderNumber = poObj.custPO;
+        }
         let dtTranDate = NS_Format.parse({
             value: poObj.tranDate,
             type: NS_Format.Type.DATE
         });
         log.debug(logTitle, 'dtTranDate=' + dtTranDate);
         if (dtTranDate) {
+            dnhTemplate.endUserData = dnhTemplate.endUserData || {};
             let tranDateISOStr = dtTranDate.toISOString();
             dnhTemplate.endUserData.dateOfSale = tranDateISOStr;
             log.debug(logTitle, 'tranDateISOStr=' + tranDateISOStr);
@@ -347,24 +364,41 @@ define(['N/format', 'N/error', '../Library/CTC_VCSP_Constants', '../Library/CTC_
                             itemJsonData = JSON.parse(JSON.stringify(responseBody));
                         if (shipmentDetails.lines && shipmentDetails.lines.length) {
                             // valid lines
-                            for (let line = 0, lineCount = shipmentDetails.lines.length; line < lineCount; line += 1) {
-                                log.audit(logTitle, 'shipment line=' + JSON.stringify(shipmentDetails.lines));
+                            for (
+                                let line = 0, lineCount = shipmentDetails.lines.length;
+                                line < lineCount;
+                                line += 1
+                            ) {
+                                log.audit(
+                                    logTitle,
+                                    'shipment line=' + JSON.stringify(shipmentDetails.lines)
+                                );
                                 let lineDetails = shipmentDetails.lines[line];
                                 delete itemJsonData.shipments;
-                                itemJsonData.shipments = JSON.parse(JSON.stringify(shipmentDetails));
+                                itemJsonData.shipments = JSON.parse(
+                                    JSON.stringify(shipmentDetails)
+                                );
                                 delete itemJsonData.shipments.lines;
                                 itemJsonData.shipments.line = lineDetails;
-                                let itemJsonDataStr = JSON.stringify(itemJsonData).replace(/,/g, ',<br>');
+                                let itemJsonDataStr = JSON.stringify(itemJsonData).replace(
+                                    /,/g,
+                                    ',<br>'
+                                );
                                 if (itemJsonDataStr == '{}') itemJsonDataStr = 'NA';
                                 let itemDetails = {
                                     line_unique_key: lineDetails.externalLineNumber,
-                                    line_number: lineUniqueKeys.indexOf(lineDetails.externalLineNumber) + 1,
+                                    line_number:
+                                        lineUniqueKeys.indexOf(lineDetails.externalLineNumber) + 1,
                                     vendor_line: 'NA',
                                     order_status: 'accepted',
                                     order_type: 'NA',
                                     vendor_order_number: responseBody.orderNumber || 'NA',
-                                    customer_order_number: responseBody.customerPurchaseOrder || 'NA',
-                                    order_date: Helper.formatFromISODateString(endUserDataDetails.dateOfSale) || 'NA',
+                                    customer_order_number:
+                                        responseBody.customerPurchaseOrder || 'NA',
+                                    order_date:
+                                        Helper.formatFromISODateString(
+                                            endUserDataDetails.dateOfSale
+                                        ) || 'NA',
                                     vendor_sku: lineDetails.item || 'NA',
                                     item_number: 'NA',
                                     note: responseBody.specialInstructions,
@@ -381,8 +415,12 @@ define(['N/format', 'N/error', '../Library/CTC_VCSP_Constants', '../Library/CTC_
                                     internal_reference_num: 'NA',
                                     json_data: itemJsonDataStr
                                 };
-                                if (endUserDataDetails.serialNumbers && endUserDataDetails.serialNumbers.length) {
-                                    itemDetails.serial_num = endUserDataDetails.serialNumbers.join('\n');
+                                if (
+                                    endUserDataDetails.serialNumbers &&
+                                    endUserDataDetails.serialNumbers.length
+                                ) {
+                                    itemDetails.serial_num =
+                                        endUserDataDetails.serialNumbers.join('\n');
                                 }
                                 if (lineDetails.clientReferenceData) {
                                     itemDetails.internal_reference_num = JSON.stringify(
@@ -419,12 +457,15 @@ define(['N/format', 'N/error', '../Library/CTC_VCSP_Constants', '../Library/CTC_
                         ' line item(s) and ' +
                         orderStatus.errorLines.length +
                         ' failed line(s)';
-                    if (orderStatus.lineNotes.length) returnValue.message += ':\n' + orderStatus.lineNotes.join('\n');
+                    if (orderStatus.lineNotes.length)
+                        returnValue.message += ':\n' + orderStatus.lineNotes.join('\n');
                 } else if (orderStatus.errorLines.length) {
                     returnValue.message = 'Send PO failed.\n' + orderStatus.lineNotes.join('\n');
                 } else {
                     returnValue.message =
-                        'Send PO successful with ' + orderStatus.successLines.length + ' line item(s).';
+                        'Send PO successful with ' +
+                        orderStatus.successLines.length +
+                        ' line item(s).';
                 }
                 returnValue.orderStatus = orderStatus;
             }

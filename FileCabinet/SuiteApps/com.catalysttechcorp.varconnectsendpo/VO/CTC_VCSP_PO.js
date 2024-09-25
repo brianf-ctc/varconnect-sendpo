@@ -16,7 +16,9 @@ define(['N/search', '../Library/CTC_VCSP_Constants'], function (ns_search, VCSP_
         let record = option.transaction,
             field = option.field;
 
-        return record.getValue({ fieldId: field }) ? record.getValue({ fieldId: field }) : undefined;
+        return record.getValue({ fieldId: field })
+            ? record.getValue({ fieldId: field })
+            : undefined;
     }
 
     function _getFieldText(option) {
@@ -157,12 +159,12 @@ define(['N/search', '../Library/CTC_VCSP_Constants'], function (ns_search, VCSP_
             field: 'addressee'
         });
         this.shipAddrName1 = this.shipAttention || this.shipAddressee;
-        (this.shipAddrName2 = this.shipAttention ? this.shipAddressee : null),
-            (this.shipPhone = _getSubrecordValue({
-                transaction: record,
-                subrecord: 'shippingaddress',
-                field: 'addrphone'
-            }));
+        this.shipAddrName2 = this.shipAttention ? this.shipAddressee : null;
+        this.shipPhone = _getSubrecordValue({
+            transaction: record,
+            subrecord: 'shippingaddress',
+            field: 'addrphone'
+        });
         this.shipAddr1 = _getSubrecordValue({
             transaction: record,
             subrecord: 'shippingaddress',
@@ -214,6 +216,8 @@ define(['N/search', '../Library/CTC_VCSP_Constants'], function (ns_search, VCSP_
             subrecord: 'billingaddress',
             field: 'addressee'
         });
+        this.billAddrName1 = this.billAttention || this.billAddressee;
+        this.billAddrName2 = this.billAttention ? this.billAddressee : null;
         this.billPhone = _getSubrecordValue({
             transaction: record,
             subrecord: 'billingaddress',
@@ -250,6 +254,13 @@ define(['N/search', '../Library/CTC_VCSP_Constants'], function (ns_search, VCSP_
             field: 'country'
         });
 
+        let billToContactDetails = _getEntityContactValues({
+            entityId: _getFieldValue({ transaction: record, field: 'shipto' })
+        });
+        if (billToContactDetails) {
+            this.billEmail = billToContactDetails.email;
+            this.billPhone = this.billPhone || billToContactDetails.phone;
+        }
         this.terms = _getFieldText({ transaction: record, field: 'terms' });
 
         this.createdFrom = _getFieldValue({ transaction: record, field: 'createdfrom' });
@@ -302,6 +313,13 @@ define(['N/search', '../Library/CTC_VCSP_Constants'], function (ns_search, VCSP_
                     field: 'amount',
                     line: i
                 }),
+                isclosed: _getSublistValue({
+                    transaction: record,
+                    sublist: 'item',
+                    field: 'isclosed',
+                    line: i
+                }),
+
                 expectedReceiptDate: _getSublistText({
                     transaction: record,
                     sublist: 'item',
@@ -416,6 +434,9 @@ define(['N/search', '../Library/CTC_VCSP_Constants'], function (ns_search, VCSP_
                 columns.quotenumber = vendorConfig.quoteColumn;
             }
 
+            if (vendorConfig.vendorSKU) {
+                columns.vendorSKU = vendorConfig.vendorSKU;
+            }
             this.setItemLineValues({
                 columns: columns,
                 transaction: record

@@ -31,6 +31,8 @@ define([
     let vendorConfigFields = [
         { name: VendorConfig.ID },
         { name: VendorConfig.SUBSIDIARY },
+        { name: 'internalid', join: VendorConfig.SUBSIDIARY },
+        { name: 'name', join: VendorConfig.SUBSIDIARY },
         { name: 'country', join: VendorConfig.SUBSIDIARY },
         { name: VendorConfig.API_VENDOR },
         { name: VendorConfig.VENDOR },
@@ -40,6 +42,7 @@ define([
         { name: VendorConfig.CUSTOMER_NO },
         { name: VendorConfig.API_KEY },
         { name: VendorConfig.API_SECRET },
+        { name: VendorConfig.WEBHOOK_SECRET_KEY },
         { name: VendorConfig.ACCESS_ENDPOINT },
         { name: VendorConfig.OAUTH_SCOPE },
         { name: VendorConfig.SUBSCRIPTION_KEY },
@@ -54,14 +57,18 @@ define([
         { name: VendorConfig.Bill.COUNTRY },
         { name: VendorConfig.TEST_REQUEST },
         { name: VendorConfig.IS_SPECIAL_ITEM_NAME },
+        { name: VendorConfig.IS_ASYNC },
         { name: VendorConfig.QA_WEBSERVICE_ENDPOINT },
         { name: VendorConfig.QA_ACCESS_ENDPOINT },
         { name: VendorConfig.QA_OAUTH_SCOPE },
         { name: VendorConfig.QA_API_KEY },
         { name: VendorConfig.QA_API_SECRET },
+        { name: VendorConfig.QA_WEBHOOK_SECRET_KEY },
         { name: VendorConfig.QA_SUBSCRIPTION_KEY },
         { name: VendorConfig.PONUM_FIELD },
         { name: VendorConfig.ITEM_COLUMN },
+        { name: VendorConfig.SKU_COLUMN },
+        { name: VendorConfig.PRIORITIZE_SKU_COLUMN },
         { name: VendorConfig.QUOTE_COLUMN },
         { name: VendorConfig.MEMO_FIELD },
         { name: VendorConfig.SHIP_CONTACT_FIELD },
@@ -93,7 +100,7 @@ define([
         });
         let returnValue = {
             id: result.getValue({ name: VendorConfig.ID }),
-            subsidiary: result.getValue({ name: VendorConfig.SUBSIDIARY }),
+            subsidiary: result.getValue({ name: 'internalid', join: VendorConfig.SUBSIDIARY }),
             country: result.getValue({ name: 'country', join: VendorConfig.SUBSIDIARY }),
             apiVendor: result.getValue({ name: VendorConfig.API_VENDOR }),
             vendor: result.getValue({ name: VendorConfig.VENDOR }),
@@ -104,11 +111,14 @@ define([
             customerNo: result.getValue({ name: VendorConfig.CUSTOMER_NO }),
             apiKey: result.getValue({ name: VendorConfig.API_KEY }),
             apiSecret: result.getValue({ name: VendorConfig.API_SECRET }),
+            webhookSecretKey: result.getValue({ name: VendorConfig.WEBHOOK_SECRET_KEY }),
             accessEndPoint: result.getValue({ name: VendorConfig.ACCESS_ENDPOINT }),
             oauthScope: result.getValue({ name: VendorConfig.OAUTH_SCOPE }),
             subscriptionKey: result.getValue({ name: VendorConfig.SUBSCRIPTION_KEY }),
             poNumField: result.getValue({ name: VendorConfig.PONUM_FIELD }),
             itemColumn: result.getValue({ name: VendorConfig.ITEM_COLUMN }),
+            vendorSKU: result.getValue({ name: VendorConfig.SKU_COLUMN }),
+            prioritizeVendorSKU: result.getValue({ name: VendorConfig.PRIORITIZE_SKU_COLUMN }),
             quoteColumn: result.getValue({ name: VendorConfig.QUOTE_COLUMN }),
             memoField: result.getValue({ name: VendorConfig.MEMO_FIELD }),
             shipContactField: result.getValue({ name: VendorConfig.SHIP_CONTACT_FIELD }),
@@ -129,12 +139,14 @@ define([
                 email: result.getValue({ name: VendorConfig.Bill.EMAIL })
             },
             isSpecialItemName: result.getValue({ name: VendorConfig.IS_SPECIAL_ITEM_NAME }),
+            isAsync: result.getValue({ name: VendorConfig.IS_ASYNC }),
             testRequest: result.getValue({ name: VendorConfig.TEST_REQUEST }),
             qaEndPoint: result.getValue({ name: VendorConfig.QA_WEBSERVICE_ENDPOINT }),
             qaAccessEndPoint: result.getValue({ name: VendorConfig.QA_ACCESS_ENDPOINT }),
             qaOauthScope: result.getValue({ name: VendorConfig.QA_OAUTH_SCOPE }),
             qaApiKey: result.getValue({ name: VendorConfig.QA_API_KEY }),
             qaApiSecret: result.getValue({ name: VendorConfig.QA_API_SECRET }),
+            qaWebhookSecretKey: result.getValue({ name: VendorConfig.QA_WEBHOOK_SECRET_KEY }),
             qaSubscriptionKey: result.getValue({ name: VendorConfig.QA_SUBSCRIPTION_KEY }),
             paymentMean: result.getText({ name: VendorConfig.PAYMENT.MEAN }),
             paymentOther: result.getText({ name: VendorConfig.PAYMENT.OTHER }),
@@ -144,7 +156,9 @@ define([
                 name: VendorConfig.ENABLE_ADD_VENDOR_DETAILS
             }),
             additionalPOFields: vendorConfigRecord.getValue(VendorConfig.ADDITIONAL_PO_FIELDS),
-            includeAdditionalDetailsOnSubmit: vendorConfigRecord.getValue(VendorConfig.ADD_DETAILS_ON_SUBMIT),
+            includeAdditionalDetailsOnSubmit: vendorConfigRecord.getValue(
+                VendorConfig.ADD_DETAILS_ON_SUBMIT
+            ),
             poLineColumns: vendorConfigRecord.getValue(VendorConfig.PO_LINE_COLUMNS),
             businessUnit: vendorConfigRecord.getText(VendorConfig.BUSINESS_UNIT)
         };
@@ -206,7 +220,8 @@ define([
             if (VCSP_Pref.isSubsidiariesEnabled()) {
                 filter.push(
                     NS_Search.createFilter({
-                        name: VendorConfig.SUBSIDIARY,
+                        name: 'internalid',
+                        join: VendorConfig.SUBSIDIARY,
                         operator: NS_Search.Operator.ANYOF,
                         values: subsidiary
                     })
@@ -256,7 +271,8 @@ define([
         if (VCSP_Pref.isSubsidiariesEnabled()) {
             filter.push(
                 NS_Search.createFilter({
-                    name: VendorConfig.SUBSIDIARY,
+                    name: 'internalid',
+                    join: VendorConfig.SUBSIDIARY,
                     operator: NS_Search.Operator.ANYOF,
                     values: subsidiary
                 })
@@ -302,7 +318,10 @@ define([
             vendorId = option.vendor,
             returnValue = null;
         // init search details
-        let searchColumns = [{ name: VendorConfig.ADDITIONAL_PO_FIELDS }, { name: VendorConfig.FIELD_MAP }],
+        let searchColumns = [
+                { name: VendorConfig.ADDITIONAL_PO_FIELDS },
+                { name: VendorConfig.FIELD_MAP }
+            ],
             searchDetails;
         if (vendorConfigId) {
             returnValue = getVendorConfiguration({
@@ -324,7 +343,10 @@ define([
                 ],
                 columns: searchColumns
             };
-            log.debug(logTitle, 'Looking up additional vendor config fields: ' + JSON.stringify(searchDetails));
+            log.debug(
+                logTitle,
+                'Looking up additional vendor config fields: ' + JSON.stringify(searchDetails)
+            );
             let vendorSearch = NS_Search.create(searchDetails);
             let results = vendorSearch.run().getRange({
                 start: 0,
